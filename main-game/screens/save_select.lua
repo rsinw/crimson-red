@@ -19,14 +19,11 @@ local SLOT_START_X  = math.floor((VW - SLOTS_TOTAL_W) / 2)
 local TITLE_Y       = math.floor(VH * 0.39)
 local BOX_Y         = TITLE_Y + math.floor(VH * 0.06)
 
-local AX       = 18
-local AY       = 14
-local A_H      = 20
-local A_HEAD_W = 12
-local A_SHAFT_H = 8
-local A_SHAFT_W = 16
-local A_W      = A_HEAD_W + A_SHAFT_W
-local BOX_PAD  = 5
+local AX      = common.ARROW_X
+local AY      = common.ARROW_Y
+local A_H     = common.ARROW_H
+local A_W     = common.ARROW_W
+local BOX_PAD = 5
 
 local CLR_BTN_W = 60
 local CLR_BTN_H = 16
@@ -190,15 +187,7 @@ end
 -- DRAW
 -- ============================================================================
 
-local function drawArrow(inBlack)
-    love.graphics.setColor(inBlack and common.COLOR_BLACK or common.COLOR_RED)
-    love.graphics.polygon("fill",
-        AX,            AY + A_H/2,
-        AX + A_HEAD_W, AY,
-        AX + A_HEAD_W, AY + A_H)
-    love.graphics.rectangle("fill",
-        AX + A_HEAD_W - 2, AY + (A_H - A_SHAFT_H)/2, A_SHAFT_W + 2, A_SHAFT_H)
-end
+
 
 local function drawScene()
     love.graphics.setColor(0, 0, 0, 1)
@@ -216,7 +205,7 @@ local function drawScene()
     common.drawBox(box, pressedItem ~= nil)
 
     -- Back arrow
-    drawArrow(pressedItem == 1)
+    common.drawBackArrow(pressedItem == 1)
 
     -- Slot content
     for si = 1, SLOT_COUNT do
@@ -233,15 +222,11 @@ local function drawScene()
         if slot.empty then
             local cw = slotFont:getWidth("NEW GAME")
             local ch = slotFont:getHeight()
-            love.graphics.setColor(pressedItem==item and 0 or 1,
-                                   pressedItem==item and 0 or 1,
-                                   pressedItem==item and 0 or 1, 1)
+            common.setItemColor(pressedItem == item)
             love.graphics.print("NEW GAME", sx + (SLOT_W-cw)/2, BOX_Y + (SLOT_H-ch)/2)
         else
             local summary = slot.summary or ""
-            love.graphics.setColor(pressedItem==item and 0 or 1,
-                                   pressedItem==item and 0 or 1,
-                                   pressedItem==item and 0 or 1, 1)
+            common.setItemColor(pressedItem == item)
             love.graphics.printf(summary, sx + 8, BOX_Y + 10, SLOT_W - 16, "center")
         end
     end
@@ -260,7 +245,7 @@ local function drawScene()
             local lbl = "CLEAR"
             local tw  = slotFont:getWidth(lbl)
             local th  = slotFont:getHeight()
-            love.graphics.setColor(isPressed and 0 or 1, isPressed and 0 or 1, isPressed and 0 or 1, 1)
+            common.setItemColor(isPressed)
             love.graphics.print(lbl, bx + (CLR_BTN_W-tw)/2, CLR_BTN_Y + (CLR_BTN_H-th)/2)
         end
     end
@@ -269,18 +254,7 @@ local function drawScene()
 end
 
 function M.draw()
-    love.graphics.setCanvas(canvas_ref)
-    love.graphics.clear()
-    drawScene()
-    love.graphics.setCanvas()
-
-    local ox, oy, scale = common.letterbox()
-    love.graphics.setColor(0, 0, 0, 1)
-    love.graphics.rectangle("fill", 0, 0, love.graphics.getDimensions())
-    love.graphics.setColor(1, 1, 1, 1)
-    postfx_ref(function()
-        love.graphics.draw(canvas_ref, ox, oy, 0, scale, scale)
-    end)
+    common.renderFrame(canvas_ref, postfx_ref, drawScene)
 end
 
 return M

@@ -25,15 +25,12 @@ local SLOT_START_X  = math.floor((VW - SLOTS_TOTAL_W) / 2)
 local TITLE_Y       = math.floor(VH * 0.39)
 local BOX_Y         = TITLE_Y + math.floor(VH * 0.06)
 
--- Back arrow geometry (top-left)
-local AX       = 18
-local AY       = 14
-local A_H      = 20
-local A_HEAD_W = 12
-local A_SHAFT_H = 8
-local A_SHAFT_W = 16
-local A_W      = A_HEAD_W + A_SHAFT_W  -- 28
-local BOX_PAD  = 5   -- padding around arrow when box targets it
+-- Back arrow geometry (from common)
+local AX      = common.ARROW_X
+local AY      = common.ARROW_Y
+local A_H     = common.ARROW_H
+local A_W     = common.ARROW_W
+local BOX_PAD = 5   -- padding around arrow when box targets it
 
 -- Focusable items: 1 = back arrow, 2/3/4 = save slots 1/2/3
 local ITEM_COUNT = 4
@@ -132,21 +129,6 @@ function love.keypressed(key) if key == "escape" then love.event.quit() end end
 -- DRAW
 -- ============================================================================
 
-local function drawArrow(inBlack)
-    love.graphics.setColor(inBlack and common.COLOR_BLACK or common.COLOR_RED)
-    love.graphics.polygon("fill",
-        AX,            AY + A_H/2,
-        AX + A_HEAD_W, AY,
-        AX + A_HEAD_W, AY + A_H
-    )
-    love.graphics.rectangle("fill",
-        AX + A_HEAD_W - 2,
-        AY + (A_H - A_SHAFT_H) / 2,
-        A_SHAFT_W + 2,
-        A_SHAFT_H
-    )
-end
-
 local function drawScene()
     love.graphics.setColor(0, 0, 0, 1)
     love.graphics.rectangle("fill", 0, 0, VW, VH)
@@ -163,7 +145,7 @@ local function drawScene()
     common.drawBox(box, pressedItem ~= nil)
 
     -- Back arrow (on top of box so it's always readable)
-    drawArrow(pressedItem == 1)
+    common.drawBackArrow(pressedItem == 1)
 
     -- Slot labels and content text (always on top)
     for si = 1, SLOT_COUNT do

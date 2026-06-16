@@ -600,18 +600,7 @@ local function drawScene()
 end
 
 function M.draw()
-    love.graphics.setCanvas(canvas_ref)
-    love.graphics.clear()
-    drawScene()
-    love.graphics.setCanvas()
-
-    local ox, oy, scale = common.letterbox()
-    love.graphics.setColor(0, 0, 0, 1)
-    love.graphics.rectangle("fill", 0, 0, love.graphics.getDimensions())
-    love.graphics.setColor(1, 1, 1, 1)
-    postfx_ref(function()
-        love.graphics.draw(canvas_ref, ox, oy, 0, scale, scale)
-    end)
+    common.renderFrame(canvas_ref, postfx_ref, drawScene)
 end
 
 return M

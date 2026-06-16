@@ -34,14 +34,11 @@ local ROSTER_Y      = 175
 local ROSTER_INNER_X = ROSTER_X + ROSTER_PAD   -- 235
 local ROSTER_INNER_Y = ROSTER_Y + ROSTER_PAD   -- 183
 
-local AX        = 18
-local AY        = 14
-local A_H       = 20
-local A_HEAD_W  = 12
-local A_SHAFT_H = 8
-local A_SHAFT_W = 16
-local A_W       = A_HEAD_W + A_SHAFT_W
-local BOX_PAD   = 5
+local AX      = common.ARROW_X
+local AY      = common.ARROW_Y
+local A_H     = common.ARROW_H
+local A_W     = common.ARROW_W
+local BOX_PAD = 5
 
 -- ============================================================================
 -- MODULE STATE
@@ -89,13 +86,7 @@ local function drawIcon(name, x, y)
 end
 
 local function drawArrow()
-    love.graphics.setColor(pressedItem == "back" and 0 or 1, 0, 0, 1)
-    love.graphics.polygon("fill",
-        AX,            AY + A_H / 2,
-        AX + A_HEAD_W, AY,
-        AX + A_HEAD_W, AY + A_H)
-    love.graphics.rectangle("fill",
-        AX + A_HEAD_W - 2, AY + (A_H - A_SHAFT_H) / 2, A_SHAFT_W + 2, A_SHAFT_H)
+    common.drawBackArrow(pressedItem == "back")
 end
 
 -- ============================================================================
@@ -438,18 +429,7 @@ local function drawScene()
 end
 
 function M.draw()
-    love.graphics.setCanvas(canvas_ref)
-    love.graphics.clear()
-    drawScene()
-    love.graphics.setCanvas()
-
-    local ox, oy, scale = common.letterbox()
-    love.graphics.setColor(0, 0, 0, 1)
-    love.graphics.rectangle("fill", 0, 0, love.graphics.getDimensions())
-    love.graphics.setColor(1, 1, 1, 1)
-    postfx_ref(function()
-        love.graphics.draw(canvas_ref, ox, oy, 0, scale, scale)
-    end)
+    common.renderFrame(canvas_ref, postfx_ref, drawScene)
 end
 
 return M
