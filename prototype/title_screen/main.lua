@@ -70,11 +70,7 @@ local box = common.newBox()
 -- ============================================================================
 
 function love.load()
-    love.window.setTitle("Crimson Red")
-    love.window.setMode(VW, VH, {resizable = true})
-
-    canvas = common.newSceneCanvas()
-    postfx = common.newPostFX(moonshine)
+    canvas, postfx = common.setupWindow("Crimson Red", moonshine)
 
     font      = common.loadFont(math.floor(VH * 0.0444))  -- ~20px
     titleFont = common.loadFont(math.floor(VH * 0.08))    -- ~36px
@@ -87,16 +83,7 @@ function love.load()
 end
 
 function love.update(dt)
-    local vmx, vmy = common.virtualMouse()
-
-    hoveredItem = nil
-    for i = 1, #MENU_ITEMS do
-        local bx, by, bw, bh = getButtonRect(i)
-        if vmx >= bx and vmx <= bx + bw and vmy >= by and vmy <= by + bh then
-            hoveredItem = i
-            break
-        end
-    end
+    hoveredItem = common.hitTest(#MENU_ITEMS, getButtonRect)
 
     if hoveredItem then
         local bx, by, bw, bh = getButtonRect(hoveredItem)
@@ -126,13 +113,8 @@ function love.mousereleased(x, y, button)
     end
 end
 
-function love.resize(w, h)
-    postfx.resize(w, h)
-end
-
-function love.keypressed(key)
-    if key == "escape" then love.event.quit() end
-end
+function love.resize(w, h) postfx.resize(w, h) end
+function love.keypressed(key) if key == "escape" then love.event.quit() end end
 
 -- ============================================================================
 -- DRAW
@@ -162,11 +144,7 @@ local function drawScene()
     love.graphics.setFont(font)
     for i, label in ipairs(MENU_ITEMS) do
         local bx, by = getButtonRect(i)
-        if pressedItem == i then
-            love.graphics.setColor(0, 0, 0, 1)
-        else
-            love.graphics.setColor(1, 1, 1, 1)
-        end
+        common.setItemColor(pressedItem == i)
         love.graphics.print(label, bx, by)
     end
 
@@ -174,18 +152,5 @@ local function drawScene()
 end
 
 function love.draw()
-    -- Render scene to canvas at virtual resolution
-    love.graphics.setCanvas(canvas)
-    love.graphics.clear()
-    drawScene()
-    love.graphics.setCanvas()
-
-    -- Letterbox scale + chromasep + bloom via moonshine
-    local ox, oy, scale = common.letterbox()
-    love.graphics.setColor(0, 0, 0, 1)
-    love.graphics.rectangle("fill", 0, 0, love.graphics.getDimensions())
-    love.graphics.setColor(1, 1, 1, 1)
-    postfx(function()
-        love.graphics.draw(canvas, ox, oy, 0, scale, scale)
-    end)
+    common.renderFrame(canvas, postfx, drawScene)
 end

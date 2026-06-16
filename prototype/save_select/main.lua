@@ -86,11 +86,7 @@ end
 -- ============================================================================
 
 function love.load()
-    love.window.setTitle("Crimson Red — Save Select")
-    love.window.setMode(VW, VH, {resizable = true})
-
-    canvas = common.newSceneCanvas()
-    postfx = common.newPostFX(moonshine)
+    canvas, postfx = common.setupWindow("Crimson Red — Save Select", moonshine)
 
     labelFont = common.loadFont(16)
     slotFont  = common.loadFont(12)
@@ -101,16 +97,7 @@ function love.load()
 end
 
 function love.update(dt)
-    local vmx, vmy = common.virtualMouse()
-
-    hoveredItem = nil
-    for i = 1, ITEM_COUNT do
-        local hx, hy, hw, hh = getHitRect(i)
-        if vmx >= hx and vmx <= hx+hw and vmy >= hy and vmy <= hy+hh then
-            hoveredItem = i
-            break
-        end
-    end
+    hoveredItem = common.hitTest(ITEM_COUNT, getHitRect)
 
     if hoveredItem then
         local tx, ty, tw, th = getBoxTarget(hoveredItem)
@@ -138,13 +125,8 @@ function love.mousereleased(x, y, button)
     end
 end
 
-function love.resize(w, h)
-    postfx.resize(w, h)
-end
-
-function love.keypressed(key)
-    if key == "escape" then love.event.quit() end
-end
+function love.resize(w, h) postfx.resize(w, h) end
+function love.keypressed(key) if key == "escape" then love.event.quit() end end
 
 -- ============================================================================
 -- DRAW
@@ -199,11 +181,7 @@ local function drawScene()
         local content = saveSlots[si].empty and "NEW GAME" or "SAVE DATA"
         local cw = slotFont:getWidth(content)
         local ch = slotFont:getHeight()
-        if pressedItem == item then
-            love.graphics.setColor(0, 0, 0, 1)
-        else
-            love.graphics.setColor(1, 1, 1, 1)
-        end
+        common.setItemColor(pressedItem == item)
         love.graphics.print(content, sx + (SLOT_W - cw)/2, BOX_Y + (SLOT_H - ch)/2)
     end
 
@@ -211,18 +189,5 @@ local function drawScene()
 end
 
 function love.draw()
-    -- Render scene to canvas at virtual resolution
-    love.graphics.setCanvas(canvas)
-    love.graphics.clear()
-    drawScene()
-    love.graphics.setCanvas()
-
-    -- Letterbox scale + chromasep + bloom via moonshine
-    local ox, oy, scale = common.letterbox()
-    love.graphics.setColor(0, 0, 0, 1)
-    love.graphics.rectangle("fill", 0, 0, love.graphics.getDimensions())
-    love.graphics.setColor(1, 1, 1, 1)
-    postfx(function()
-        love.graphics.draw(canvas, ox, oy, 0, scale, scale)
-    end)
+    common.renderFrame(canvas, postfx, drawScene)
 end
