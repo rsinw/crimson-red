@@ -6,7 +6,7 @@ local M = {}
 -- EFFECT SYSTEM (processes pending → active → end lifecycle)
 -- ============================================================================
 
-function M.system(world, dt)
+function M.system(world, battle, dt)
     for id in pairs(world.entities) do
         local ec = world.effects_comp[id]; if not ec then goto continue end
         for _, eff in ipairs(ec.pending) do table.insert(ec.active, eff) end
@@ -14,15 +14,15 @@ function M.system(world, dt)
         local toRemove = {}
         for i, eff in ipairs(ec.active) do
             if eff.startFlag then
-                if eff.start then eff.start(world, nil, eff) end
+                if eff.start then eff.start(world, battle, eff) end
                 eff.startFlag = false
             end
             if eff.cancelFlag then
                 table.insert(toRemove, i)
             else
-                if not eff.endFlag and eff.active then eff.active(world, nil, eff, dt) end
+                if not eff.endFlag and eff.active then eff.active(world, battle, eff, dt) end
                 if eff.endFlag then
-                    if eff.end_fn then eff.end_fn(world, nil, eff) end
+                    if eff.end_fn then eff.end_fn(world, battle, eff) end
                     table.insert(toRemove, i)
                 end
             end
@@ -185,10 +185,10 @@ end
 -- TAG SYSTEM (broadcasts events to conditional effects)
 -- ============================================================================
 
-function M.readTagSystem(world, tag)
+function M.readTagSystem(world, battle, tag)
     for _, ec in pairs(world.effects_comp) do
         for _, eff in ipairs(ec.active) do
-            if eff.conditional then eff.conditional(world, nil, eff, tag) end
+            if eff.conditional then eff.conditional(world, battle, eff, tag) end
         end
     end
 end

@@ -91,7 +91,7 @@ end
 -- SKILL SYSTEM (processes cooldowns + queue)
 -- ============================================================================
 
-function M.system(world, dt)
+function M.system(world, battle, dt)
     for id in pairs(world.entities) do
         local sk = world.skills[id]; if not sk then goto continue end
         sk.gcd = math.max(0, sk.gcd - dt)
@@ -101,7 +101,7 @@ function M.system(world, dt)
             local slotIdx = table.remove(sk.queue, 1)
             local skill   = sk.list[slotIdx]
             if skill and skill.cd <= 0 then
-                skill.use(world, nil, id, skill)
+                skill.use(world, battle, id, skill)
                 if not skill.isAutoAttack then sk.gcd = M.GCD_DURATION end
             end
         end
@@ -138,7 +138,7 @@ end
 -- PENDING ACTIVE SYSTEM (processes skill activation from key press)
 -- ============================================================================
 
-function M.pendingActiveSystem(world)
+function M.pendingActiveSystem(world, battle)
     for id in pairs(world.entities) do
         if world.deathState[id] then goto continue end
         local sk = world.skills[id]
@@ -154,7 +154,7 @@ function M.pendingActiveSystem(world)
         end
         local slot = sk.pendingActive
         local skill = sk.list[slot]
-        if skill and skill.use then skill.use(world, nil, id, skill) end
+        if skill and skill.use then skill.use(world, battle, id, skill) end
         sk.gcd = M.GCD_DURATION; sk.pendingActive = nil
         ::continue::
     end

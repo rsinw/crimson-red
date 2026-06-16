@@ -138,7 +138,7 @@ function M.registerHit(world, battle, srcId, tgtId, keywords, useVFX, SCALE, GRA
         if kbEc then table.insert(kbEc.pending, effects_mod.newForce(tgtId, dx*400, dy*150, 0.12)) end
     end
 
-    effects_mod.readTagSystem(world, {src=srcId, tgt=tgtId, keywords=keywords or {}, amount=dmg})
+    effects_mod.readTagSystem(world, battle, {src=srcId, tgt=tgtId, keywords=keywords or {}, amount=dmg})
 
     local tgtMt = world.moveTarget[tgtId]
     if world.targetSide[tgtId] == 1 and not world.entityTarget[tgtId]
