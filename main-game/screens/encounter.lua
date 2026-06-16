@@ -129,7 +129,8 @@ end
 local function loadAnim(name, path, frames, fw, fh, defaultScale)
     local ok, img = pcall(love.graphics.newImage, path)
     if not ok then
-        print("[anim] missing: " .. path)
+        print("[encounter] Failed to load sprite '" .. name .. "' from: " .. path)
+        print("[encounter]   Error: " .. tostring(img))
         animDB[name] = {img=nil, frames=frames, fw=fw, fh=fh,
                         defaultScale=defaultScale or 1.0, quads={}}
         return
@@ -163,7 +164,12 @@ local function loadAssets(c, pfx)
     battle.smallFont = common.loadFont(10)
 
     local ok, bg = pcall(love.graphics.newImage, "assets/images/battlebg.png")
-    battle.battlebg = ok and bg or nil
+    if ok then
+        battle.battlebg = bg
+    else
+        print("[encounter] Failed to load battle background: " .. tostring(bg))
+        battle.battlebg = nil
+    end
 
     local C = "assets/characters/"
     local E = "assets/enemies/"
@@ -204,17 +210,38 @@ local function loadAssets(c, pfx)
     loadAnim("NomadAttack2", C.."Nomad/Attack2.png",   8, 250, 250, 0.54)
     loadAnim("NomadDeath",   C.."Nomad/Death.png",     7, 250, 250, 0.54)
 
+    local iconLoadFailures = 0
     for i = 1, 54 do
         local ok2, img = pcall(love.graphics.newImage, "assets/icons/skill_icons"..i..".png")
-        iconImages[i] = ok2 and img or nil
+        if ok2 then
+            iconImages[i] = img
+        else
+            iconImages[i] = nil
+            iconLoadFailures = iconLoadFailures + 1
+        end
+    end
+    if iconLoadFailures > 0 then
+        print("[encounter] " .. iconLoadFailures .. " of 54 skill icons failed to load")
     end
 
     local ok1, m1 = pcall(love.audio.newSource, "assets/sounds/VistulaShort.mp3", "stream")
-    if ok1 then battle.music1 = m1; m1:setLooping(true); m1:setVolume(0.6); m1:setPitch(0.3) end
+    if ok1 then
+        battle.music1 = m1; m1:setLooping(true); m1:setVolume(0.6); m1:setPitch(0.3)
+    else
+        print("[encounter] Failed to load music1: " .. tostring(m1))
+    end
     local ok2b, m2 = pcall(love.audio.newSource, "assets/sounds/jaggedrocksv1.ogg", "stream")
-    if ok2b then battle.music2 = m2; m2:setLooping(true); m2:setVolume(0.8); m2:setPitch(0.3) end
+    if ok2b then
+        battle.music2 = m2; m2:setLooping(true); m2:setVolume(0.8); m2:setPitch(0.3)
+    else
+        print("[encounter] Failed to load music2: " .. tostring(m2))
+    end
     local okb, bell = pcall(love.audio.newSource, "assets/sounds/churchbell.ogg", "static")
-    if okb then battle.bell = bell; bell:setVolume(0.7) end
+    if okb then
+        battle.bell = bell; bell:setVolume(0.7)
+    else
+        print("[encounter] Failed to load bell sfx: " .. tostring(bell))
+    end
 end
 
 -- ============================================================================

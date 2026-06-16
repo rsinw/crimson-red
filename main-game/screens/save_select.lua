@@ -78,7 +78,7 @@ local function loadSlotInfo()
     saveSlots = {}
     for i = 1, SLOT_COUNT do
         if save.exists(i) then
-            local data = save.load(i)
+            local data, err = save.load(i)
             if data then
                 local party = data.partyOrder or {}
                 local names = {}
@@ -92,6 +92,8 @@ local function loadSlotInfo()
                     empty   = false,
                     summary = table.concat(names, "  "),
                 }
+            elseif err == "decode_error" then
+                saveSlots[i] = {label = "SAVE " .. i, empty=false, summary="CORRUPTED"}
             else
                 saveSlots[i] = {label = "SAVE " .. i, empty=true}
             end
