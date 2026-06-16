@@ -214,7 +214,11 @@ function M.onEnter(canvas, postfx, sw, saveData, slot)
     for name in pairs(uc) do
         if not icons[name] then
             local ok, img = pcall(love.graphics.newImage, "assets/charicons/icon-" .. name .. ".png")
-            if ok then icons[name] = img end
+            if ok then
+                icons[name] = img
+            else
+                print("[party_select] Failed to load icon for '" .. name .. "': " .. tostring(img))
+            end
         end
     end
 

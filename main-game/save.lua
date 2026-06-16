@@ -15,12 +15,25 @@ function M.load(slot)
     local raw = love.filesystem.read(filename(slot))
     if not raw then return nil end
     local ok, data = pcall(json.decode, raw)
-    return ok and data or nil
+    if not ok then
+        print("[save] corrupt save in slot " .. slot .. ": " .. tostring(data))
+        return nil, "decode_error"
+    end
+    return data
 end
 
 function M.write(slot, data)
-    local ok, err = love.filesystem.write(filename(slot), json.encode(data))
-    if not ok then print("[save] write error:", err) end
+    local encodeOk, encoded = pcall(json.encode, data)
+    if not encodeOk then
+        print("[save] encode error for slot " .. slot .. ": " .. tostring(encoded))
+        return false, encoded
+    end
+    local ok, err = love.filesystem.write(filename(slot), encoded)
+    if not ok then
+        print("[save] write error for slot " .. slot .. ": " .. tostring(err))
+        return false, err
+    end
+    return true
 end
 
 function M.delete(slot)

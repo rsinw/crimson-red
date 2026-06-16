@@ -354,12 +354,22 @@ function M.onEnter(canvas, postfx, sw, sd, slot)
             }
         ]])
 
-        icons.unknown = love.graphics.newImage("assets/icons/mapicon-unknown.png")
-        icons.tree    = love.graphics.newImage("assets/icons/mapicon-tree.png")
-        icons.water   = love.graphics.newImage("assets/icons/mapicon-ocean.png")
-        icons.shop    = love.graphics.newImage("assets/icons/mapicon-shop.png")
-        icons.player  = love.graphics.newImage("assets/icons/mapicon-player.png")
-        for _, img in pairs(icons) do img:setFilter("nearest", "nearest") end
+        local iconDefs = {
+            {key="unknown", path="assets/icons/mapicon-unknown.png"},
+            {key="tree",    path="assets/icons/mapicon-tree.png"},
+            {key="water",   path="assets/icons/mapicon-ocean.png"},
+            {key="shop",    path="assets/icons/mapicon-shop.png"},
+            {key="player",  path="assets/icons/mapicon-player.png"},
+        }
+        for _, def in ipairs(iconDefs) do
+            local ok, img = pcall(love.graphics.newImage, def.path)
+            if ok then
+                icons[def.key] = img
+                img:setFilter("nearest", "nearest")
+            else
+                print("[map] Failed to load icon '" .. def.key .. "': " .. tostring(img))
+            end
+        end
     end
 
     -- Restore player position from save
@@ -449,6 +459,7 @@ end
 -- ============================================================================
 
 local function drawIcon(img, sx, sy)
+    if not img then return end
     local iw, ih = img:getDimensions()
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.draw(img, sx, sy, 0, TILE_SIZE/iw, TILE_SIZE/ih)

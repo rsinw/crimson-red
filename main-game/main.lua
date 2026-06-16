@@ -39,6 +39,9 @@ local trans = {
 local switchTo  -- forward-declared so screens can capture it in their closure
 
 local function doSwitch(name, ...)
+    if not screens[name] then
+        error("[main] Attempted to switch to unknown screen: '" .. tostring(name) .. "'")
+    end
     if screens[current].onExit then screens[current].onExit() end
     current = name
     screens[name].onEnter(canvas, postfx, switchTo, ...)

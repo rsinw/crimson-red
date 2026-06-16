@@ -149,11 +149,17 @@ end
 -- FONT HELPER
 -- ============================================================================
 
--- Load Dedicool at the given size (path relative to the calling prototype's dir)
+-- Load Dedicool at the given size (path relative to the calling prototype's dir).
+-- Returns the font on success. On failure, logs the error and returns a built-in
+-- fallback so callers never receive nil.
 function M.loadFont(size)
     local ok, f = pcall(love.graphics.newFont, "assets/dedicool/Dedicool.ttf", size)
-    if not ok then print("[common] Font load error:", f) end
-    return ok and f or love.graphics.newFont(size)
+    if not ok then
+        print("[common] Font load failed (size " .. tostring(size) .. "): " .. tostring(f))
+        print("[common] Falling back to default Love2D font at size " .. tostring(size))
+        return love.graphics.newFont(size)
+    end
+    return f
 end
 
 -- ============================================================================
