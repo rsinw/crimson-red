@@ -84,16 +84,7 @@ function M.onEnter(canvas, postfx, sw)
 end
 
 function M.update(dt)
-    local vmx, vmy = common.virtualMouse()
-
-    hoveredItem = nil
-    for i = 1, #MENU_ITEMS do
-        local bx, by, bw, bh = getButtonRect(i)
-        if vmx >= bx and vmx <= bx+bw and vmy >= by and vmy <= by+bh then
-            hoveredItem = i
-            break
-        end
-    end
+    hoveredItem = common.hitTest(#MENU_ITEMS, getButtonRect)
 
     if hoveredItem then
         local bx, by, bw, bh = getButtonRect(hoveredItem)
@@ -149,9 +140,7 @@ local function drawScene()
     love.graphics.setFont(font)
     for i, label in ipairs(MENU_ITEMS) do
         local bx, by = getButtonRect(i)
-        love.graphics.setColor(pressedItem == i and 0 or 1,
-                               pressedItem == i and 0 or 1,
-                               pressedItem == i and 0 or 1, 1)
+        common.setItemColor(pressedItem == i)
         love.graphics.print(label, bx, by)
     end
 
@@ -159,18 +148,7 @@ local function drawScene()
 end
 
 function M.draw()
-    love.graphics.setCanvas(canvas_ref)
-    love.graphics.clear()
-    drawScene()
-    love.graphics.setCanvas()
-
-    local ox, oy, scale = common.letterbox()
-    love.graphics.setColor(0, 0, 0, 1)
-    love.graphics.rectangle("fill", 0, 0, love.graphics.getDimensions())
-    love.graphics.setColor(1, 1, 1, 1)
-    postfx_ref(function()
-        love.graphics.draw(canvas_ref, ox, oy, 0, scale, scale)
-    end)
+    common.renderFrame(canvas_ref, postfx_ref, drawScene)
 end
 
 return M

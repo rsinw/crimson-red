@@ -156,4 +156,93 @@ function M.loadFont(size)
     return ok and f or love.graphics.newFont(size)
 end
 
+-- ============================================================================
+-- WINDOW / SCENE SETUP
+-- ============================================================================
+-- Standard window initialisation shared by all prototypes.
+-- Returns canvas, postfx so the caller can store them.
+
+function M.setupWindow(title, moonshine_mod)
+    love.window.setTitle(title)
+    love.window.setMode(M.VW, M.VH, {resizable = true})
+    local c  = M.newSceneCanvas()
+    local fx = M.newPostFX(moonshine_mod)
+    return c, fx
+end
+
+-- ============================================================================
+-- RENDER FRAME
+-- ============================================================================
+-- Full love.draw() pipeline: render drawSceneFn into canvas at virtual
+-- resolution, then blit to screen with letterbox + post-processing.
+
+function M.renderFrame(canvas, postfx, drawSceneFn)
+    love.graphics.setCanvas(canvas)
+    love.graphics.clear()
+    drawSceneFn()
+    love.graphics.setCanvas()
+
+    local ox, oy, scale = M.letterbox()
+    love.graphics.setColor(0, 0, 0, 1)
+    love.graphics.rectangle("fill", 0, 0, love.graphics.getDimensions())
+    love.graphics.setColor(1, 1, 1, 1)
+    postfx(function()
+        love.graphics.draw(canvas, ox, oy, 0, scale, scale)
+    end)
+end
+
+-- ============================================================================
+-- HIT TEST
+-- ============================================================================
+-- Generic hover detection: iterates 1..count, calls getRectFn(i) for each
+-- item, tests virtual-mouse against the rect. Returns hovered index or nil.
+
+function M.hitTest(count, getRectFn)
+    local vmx, vmy = M.virtualMouse()
+    for i = 1, count do
+        local bx, by, bw, bh = getRectFn(i)
+        if vmx >= bx and vmx <= bx + bw and vmy >= by and vmy <= by + bh then
+            return i
+        end
+    end
+    return nil
+end
+
+-- ============================================================================
+-- ITEM COLOR HELPER
+-- ============================================================================
+-- Sets love.graphics color for interactive item text/icons:
+-- pressed → black (text inverts over white fill), otherwise → white.
+
+function M.setItemColor(isPressed)
+    if isPressed then
+        love.graphics.setColor(0, 0, 0, 1)
+    else
+        love.graphics.setColor(1, 1, 1, 1)
+    end
+end
+
+-- ============================================================================
+-- BACK ARROW
+-- ============================================================================
+-- Shared back-arrow geometry used by save_select, party_select, map top-bar.
+-- Draws a left-pointing arrow at a fixed top-left position.
+
+M.ARROW_X       = 18
+M.ARROW_Y       = 14
+M.ARROW_H       = 20
+M.ARROW_HEAD_W  = 12
+M.ARROW_SHAFT_H = 8
+M.ARROW_SHAFT_W = 16
+M.ARROW_W       = M.ARROW_HEAD_W + M.ARROW_SHAFT_W
+
+function M.drawBackArrow(isPressed)
+    local ax, ay, ah = M.ARROW_X, M.ARROW_Y, M.ARROW_H
+    local hw = M.ARROW_HEAD_W
+    local sh, sw = M.ARROW_SHAFT_H, M.ARROW_SHAFT_W
+    love.graphics.setColor(isPressed and M.COLOR_BLACK or M.COLOR_RED)
+    love.graphics.polygon("fill", ax, ay + ah/2, ax + hw, ay, ax + hw, ay + ah)
+    love.graphics.rectangle("fill", ax + hw - 2, ay + (ah - sh)/2, sw + 2, sh)
+end
+
 return M
