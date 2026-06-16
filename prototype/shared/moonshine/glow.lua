@@ -70,6 +70,12 @@ return function(moonshine)
     local front, back = buffer() -- scene so far is in `back'
     scene, back = back, scene    -- save it for second draw below
 
+    -- after a window resize, back (the saved scene canvas) may be the wrong size
+    local fw, fh = front:getDimensions()
+    if back:getWidth() ~= fw or back:getHeight() ~= fh then
+      back = love.graphics.newCanvas(fw, fh)
+    end
+
     -- 1st pass: draw scene with brightness threshold
     love.graphics.setCanvas(front)
     love.graphics.clear()
