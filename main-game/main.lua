@@ -3,13 +3,6 @@
 -- Screen manager: delegates love callbacks to the active screen module.
 -- ============================================================================
 
--- Build absolute path to prototype/shared so require works regardless of
--- the working directory love.exe was launched from.
-local _base = love.filesystem.getSourceBaseDirectory()
-package.path = package.path
-    .. ";" .. _base .. "/prototype/shared/?.lua"
-    .. ";" .. _base .. "/prototype/shared/?/init.lua"
-
 local common    = require("common")
 local moonshine = require("moonshine")
 
