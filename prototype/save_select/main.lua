@@ -211,13 +211,11 @@ local function drawScene()
 end
 
 function love.draw()
-    -- Render scene to canvas at virtual resolution
     love.graphics.setCanvas(canvas)
     love.graphics.clear()
     drawScene()
     love.graphics.setCanvas()
 
-    -- Letterbox scale + chromasep + bloom via moonshine
     local ox, oy, scale = common.letterbox()
     love.graphics.setColor(0, 0, 0, 1)
     love.graphics.rectangle("fill", 0, 0, love.graphics.getDimensions())

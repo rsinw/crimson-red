@@ -24,13 +24,12 @@ M.COLOR_BLACK = {0, 0, 0, 1}
 -- Call M.newPostFX() after requiring moonshine in your prototype.
 --
 -- Pipeline:
---   1. Draw scene into canvas  (nearest, VW×VH)
---   2. postfx(function() love.graphics.draw(canvas) end)  ← 1:1, no scale
---      postfx runs at fixed VW×VH so bloom is always the same strength.
---      The result lands in canvas2 because you set canvas2 active before calling postfx.
---   3. Scale canvas2 to screen with letterbox.
---
--- See newOutputCanvas() below for step 2 setup.
+--   1. Draw scene into canvas (nearest, VW×VH)
+--   2. In love.draw: setCanvas(nil), then postfx(function()
+--          love.graphics.draw(canvas, ox, oy, 0, scale, scale)
+--      end)  ← draw scaled into moonshine's window-sized buffers
+--   3. Call postfx.resize(w, h) in love.resize so moonshine buffers stay window-sized.
+--      vw/vh stay at VW/VH so blur steps are in virtual-pixel units at any window size.
 
 M.CHROMA_RADIUS  = 1.0   -- chromatic aberration pixel offset
 M.BLOOM_MIN_LUMA = 0.15  -- pixels brighter than this glow (pure red luma ≈ 0.21)
@@ -38,9 +37,8 @@ M.BLOOM_STRENGTH = 3     -- glow spread (sigma); glow.lua only has strength + mi
 
 function M.newPostFX(moonshine)
     -- Use .chain() not :chain() — colon passes self as the effect arg.
-    -- Moonshine's internal buffers match the window size (resize via postfx.resize).
-    -- vw/vh on each effect lock the UV pixel step to the virtual resolution so
-    -- bloom and chromasep look identical regardless of how large the window is.
+    -- vw/vh = VW/VH so blur/shift offsets are virtual-pixel-based at any window size.
+    -- Moonshine buffers start at window size and resize with love.resize → postfx.resize.
     local fx = moonshine(moonshine.effects.chromasep).chain(moonshine.effects.glow)
     fx.chromasep.angle  = 0
     fx.chromasep.radius = M.CHROMA_RADIUS
@@ -54,11 +52,10 @@ function M.newPostFX(moonshine)
 end
 
 -- ============================================================================
--- CANVAS HELPER
+-- CANVAS HELPERS
 -- ============================================================================
 
 -- Scene canvas: nearest filter keeps pixels crisp at native res.
--- Scale up happens inside the moonshine draw call.
 function M.newSceneCanvas()
     local c = love.graphics.newCanvas(M.VW, M.VH)
     c:setFilter("nearest", "nearest")
