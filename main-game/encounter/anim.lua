@@ -126,22 +126,19 @@ function M.drawEntities(world, battle, SCALE)
             love.graphics.draw(dbEntry.img, q, pos.x, pos.y, 0, sx, sy, fw/2, fh/2)
         end
 
-        -- Hurt/heal indicator overlays (opaque colored rectangles that fade)
-        local sz = world.size[id]
-        if sz then
-            local ec = world.effects_comp[id]
-            if ec then
-                for _, eff in ipairs(ec.active) do
-                    if eff.alpha and eff.alpha > 0 and eff.target == id then
-                        local ow, oh = sz.w, sz.h
-                        local ox, oy = pos.x - ow/2, pos.y - oh/2
-                        if eff.isHeal then
-                            love.graphics.setColor(0, 1, 0, eff.alpha * 0.6)
-                        else
-                            love.graphics.setColor(1, 0, 0, eff.alpha * 0.6)
-                        end
-                        love.graphics.rectangle("fill", ox, oy, ow, oh)
+        -- Hurt/heal indicator: additive sprite overlay that fades
+        local ec = world.effects_comp[id]
+        if ec then
+            for _, eff in ipairs(ec.active) do
+                if eff.alpha and eff.alpha > 0 and eff.target == id then
+                    love.graphics.setBlendMode("add")
+                    if eff.isHeal then
+                        love.graphics.setColor(0, eff.alpha * 0.8, 0, 1)
+                    else
+                        love.graphics.setColor(eff.alpha * 0.8, 0, 0, 1)
                     end
+                    love.graphics.draw(dbEntry.img, q, pos.x, pos.y, 0, sx, sy, fw/2, fh/2)
+                    love.graphics.setBlendMode("alpha")
                 end
             end
         end
