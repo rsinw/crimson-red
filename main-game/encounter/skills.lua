@@ -3,6 +3,7 @@
 local effects_mod = require("encounter/effects")
 local combat      = require("encounter/combat")
 local stats_mod   = require("encounter/stats")
+local ui_mod      = require("encounter/ui")
 
 local statGet = stats_mod.get
 
@@ -61,7 +62,7 @@ end
 function M.newKnightSunderArmorSkill(SCALE, GRAVITY)
     return {
         name="SunderArmor", iconName="skill_icons17",
-        cd=0, cdMax=5.0, iconScale=1.0, iconScaleTarget=1.0,
+        cd=0, cdMax=10.0, resourceCost=20, iconScale=1.0, iconScaleTarget=1.0,
         use = function(w, b, id, skill)
             local et = w.entityTarget[id]; if not et then return end
             local ac = w.anim[id]
@@ -83,7 +84,7 @@ end
 function M.newKnightDefendSkill()
     return {
         name="KnightDefend", iconName="skill_icons22", noTargetRequired=true,
-        cd=0, cdMax=30.0, iconScale=1.0, iconScaleTarget=1.0,
+        cd=0, cdMax=10.0, resourceCost=20, iconScale=1.0, iconScaleTarget=1.0,
         use = function(w, b, id, skill)
             local ec = w.effects_comp[id]; if not ec then return end
             table.insert(ec.pending, effects_mod.newKnightDefend(id, statGet))
@@ -98,7 +99,7 @@ end
 function M.newNomadGrantPowerSkill()
     return {
         name="GrantPower", iconName="skill_icons15",
-        cd=0, cdMax=20.0, iconScale=1.0, iconScaleTarget=1.0,
+        cd=0, cdMax=10.0, resourceCost=20, iconScale=1.0, iconScaleTarget=1.0,
         use = function(w, b, id, skill)
             local et = w.entityTarget[id]; if not et then return end
             local ac = w.anim[id]
@@ -119,7 +120,7 @@ end
 function M.newNomadMendWoundsSkill()
     return {
         name="MendWounds", iconName="skill_icons11",
-        cd=0, cdMax=25.0, iconScale=1.0, iconScaleTarget=1.0,
+        cd=0, cdMax=10.0, resourceCost=20, iconScale=1.0, iconScaleTarget=1.0,
         use = function(w, b, id, skill)
             local et = w.entityTarget[id]; if not et then return end
             local ac = w.anim[id]
@@ -140,7 +141,7 @@ end
 function M.newNomadSparkOfInspirationSkill()
     return {
         name="SparkOfInspiration", iconName="skill_icons46",
-        cd=0, cdMax=15.0, iconScale=1.0, iconScaleTarget=1.0,
+        cd=0, cdMax=10.0, resourceCost=20, iconScale=1.0, iconScaleTarget=1.0,
         use = function(w, b, id, skill)
             local et = w.entityTarget[id]; if not et then return end
             local ac = w.anim[id]
@@ -166,7 +167,7 @@ end
 function M.newKnightChallengingShoutSkill()
     return {
         name="ChallengingShout", iconName="skill_icons13", noTargetRequired=true,
-        cd=0, cdMax=30.0, iconScale=1.0, iconScaleTarget=1.0,
+        cd=0, cdMax=10.0, resourceCost=20, iconScale=1.0, iconScaleTarget=1.0,
         use = function(w, b, id, skill)
             local ss = w.stats[id]; if not ss then return end
             local flatThreat = 10 * statGet(ss.ATK)
@@ -250,7 +251,14 @@ function M.pendingActiveSystem(world, battle)
         end
         local slot = sk.pendingActive
         local skill = sk.list[slot]
-        if skill and skill.use then skill.use(world, battle, id, skill) end
+        if skill and skill.use then
+            local cost = skill.resourceCost or 0
+            if cost > 0 and not ui_mod.spendResource(battle, cost) then
+                sk.pendingActive = nil; skill.cd = 0
+                goto continue
+            end
+            skill.use(world, battle, id, skill)
+        end
         sk.gcd = M.GCD_DURATION; sk.pendingActive = nil
         ::continue::
     end

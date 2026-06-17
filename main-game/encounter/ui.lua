@@ -151,6 +151,19 @@ function M.skillIconSystem(world, battle, dt)
             local scTarget = skill.iconScaleTarget or 1.0
             skill.iconScale = (skill.iconScale or 1.0) + (scTarget-(skill.iconScale or 1.0)) * math.min(1, dt*12)
         end
+        if skill and skill.resourceCost and skill.resourceCost > 0 then
+            local res = battle.resource
+            local canAfford = res and res.current >= skill.resourceCost
+            if not canAfford then
+                love.graphics.setColor(0, 0, 0, 0.5)
+                love.graphics.rectangle("fill", ix, iy, ICON_SIZE, ICON_SIZE)
+            end
+            love.graphics.setFont(battle.smallFont)
+            love.graphics.setColor(canAfford and {1,1,1,0.9} or {0.6,0.6,0.6,0.6})
+            local costTxt = tostring(skill.resourceCost)
+            local tw2 = battle.smallFont:getWidth(costTxt)
+            love.graphics.print(costTxt, ix+ICON_SIZE-tw2-2, iy+1)
+        end
         love.graphics.setFont(battle.smallFont)
         love.graphics.setColor(1, 1, 1, 0.7)
         love.graphics.print(string.upper(SKILL_KEYS[slotIdx]), ix+2, iy+ICON_SIZE-12)
@@ -183,6 +196,106 @@ function M.updateIconScaleAnimations(world, battle, dt)
             end
         end
     end
+end
+
+-- ============================================================================
+-- SHARED RESOURCE BAR (Clash Royale style)
+-- ============================================================================
+
+local RES_BAR_H      = 10
+local RES_BAR_PAD    = 8
+local RES_BAR_MARGIN = 20
+local RES_PER_BAR    = 5
+
+M.RESOURCE_BAR_TOTAL_H = RES_BAR_H + RES_BAR_PAD * 2
+
+function M.initResource(battle)
+    battle.resource = {
+        current   = 0,
+        max       = 50,
+        regenRate = 1,
+        barPops   = {},
+    }
+    local numBars = battle.resource.max / RES_PER_BAR
+    for i = 1, numBars do
+        battle.resource.barPops[i] = {scale=1, vel=0}
+    end
+end
+
+function M.updateResource(battle, dt)
+    local res = battle.resource; if not res then return end
+    local prevBars = math.floor(res.current / RES_PER_BAR)
+    res.current = math.min(res.max, res.current + res.regenRate * dt)
+    local newBars = math.floor(res.current / RES_PER_BAR)
+    if newBars > prevBars then
+        local pop = res.barPops[newBars]
+        if pop then pop.vel = 6.0 end
+    end
+    for _, pop in ipairs(res.barPops) do
+        if pop.scale ~= 1 or pop.vel ~= 0 then
+            pop.vel = pop.vel - (pop.scale - 1) * 120 * dt - pop.vel * 6 * dt
+            pop.scale = pop.scale + pop.vel * dt
+            if math.abs(pop.scale - 1) < 0.005 and math.abs(pop.vel) < 0.01 then
+                pop.scale = 1; pop.vel = 0
+            end
+        end
+    end
+end
+
+function M.spendResource(battle, amount)
+    local res = battle.resource; if not res then return false end
+    if res.current < amount then return false end
+    res.current = res.current - amount
+    return true
+end
+
+function M.drawResourceBar(battle, VW, VH)
+    local res = battle.resource; if not res then return end
+    local numBars = res.max / RES_PER_BAR
+    local totalW  = VW - RES_BAR_MARGIN * 2
+    local segW    = totalW / numBars
+    local segGap  = 2
+    local baseY   = VH - RES_BAR_PAD - RES_BAR_H
+
+    love.graphics.setColor(0.12, 0.12, 0.12, 0.85)
+    love.graphics.rectangle("fill", 0, VH - M.RESOURCE_BAR_TOTAL_H, VW, M.RESOURCE_BAR_TOTAL_H)
+
+    local fullBars    = math.floor(res.current / RES_PER_BAR)
+    local partialFrac = (res.current - fullBars * RES_PER_BAR) / RES_PER_BAR
+
+    for i = 1, numBars do
+        local x = RES_BAR_MARGIN + (i - 1) * segW + segGap / 2
+        local w = segW - segGap
+
+        love.graphics.setColor(0.25, 0.25, 0.25, 1)
+        love.graphics.rectangle("fill", x, baseY, w, RES_BAR_H)
+
+        if i <= fullBars then
+            local pop = res.barPops[i]
+            local sc  = pop and pop.scale or 1
+            local cy  = baseY + RES_BAR_H / 2
+            local sh  = RES_BAR_H * sc
+            love.graphics.setColor(1, 1, 1, 1)
+            love.graphics.rectangle("fill", x, cy - sh / 2, w, sh)
+        elseif i == fullBars + 1 and partialFrac > 0 then
+            love.graphics.setColor(0.6, 0.6, 0.6, 0.7)
+            love.graphics.rectangle("fill", x, baseY, w * partialFrac, RES_BAR_H)
+        end
+
+        if i % 2 == 0 and i < numBars then
+            love.graphics.setColor(0.5, 0.5, 0.5, 0.4)
+            local divX = RES_BAR_MARGIN + i * segW
+            love.graphics.line(divX, baseY, divX, baseY + RES_BAR_H)
+        end
+    end
+
+    love.graphics.setFont(battle.smallFont)
+    love.graphics.setColor(1, 1, 1, 0.8)
+    local txt = string.format("%d / %d", math.floor(res.current), res.max)
+    local tw  = battle.smallFont:getWidth(txt)
+    love.graphics.print(txt, (VW - tw) / 2, baseY + RES_BAR_H + 1)
+
+    love.graphics.setColor(1, 1, 1, 1)
 end
 
 return M

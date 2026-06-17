@@ -20,7 +20,9 @@ local SCALE = VH / 300
 local GRAVITY       = 9.8 * 30 * SCALE
 local MASS          = 70
 local FRICTION      = 0.9
+local RES_BAR_H     = ui.RESOURCE_BAR_TOTAL_H
 local BATTLE_LINE_Y = VH * 0.2
+local FLOOR_Y       = VH - RES_BAR_H
 
 local ENEMY_DANGER = { skeleton = 3 }
 
@@ -84,6 +86,7 @@ local function initBattle(c, pfx)
     battle.victoryDelay    = nil
     battle.hoveredUnit     = nil
     battle.pressedUnit     = nil
+    ui.initResource(battle)
 end
 
 -- ============================================================================
@@ -180,6 +183,7 @@ local function drawScene(dt)
     particles.drawHeal(battle)
     ui.barSystem(world, battle)
     ui.skillIconSystem(world, battle, dt)
+    ui.drawResourceBar(battle, VW, VH)
 
     -- Victory overlay
     if battle.victoryTimer then
@@ -195,7 +199,7 @@ local function drawScene(dt)
 
     love.graphics.setFont(battle.smallFont)
     love.graphics.setColor(1, 1, 1, 0.55)
-    love.graphics.print("1-2: select  Q/W/E: skills  K: spawn skeleton  RClick: target/move  Esc: retreat", 5, VH-14)
+    love.graphics.print("1-2: select  Q/W/E: skills  K: spawn skeleton  RClick: target/move  Esc: retreat", 5, VH-RES_BAR_H-14)
     love.graphics.setColor(1, 1, 1, 1)
 end
 
@@ -243,12 +247,12 @@ function M.onEnter(canvas, postfx, sw, sd, slot, encounterConfig)
     -- Spawn party walking in from the left edge
     local partyOrder  = sd and sd.partyOrder or {"knight"}
     local targetX     = VW * 0.25
-    local partyFeetYs = { VH*0.50, VH*0.62, VH*0.74, VH*0.86 }
+    local partyFeetYs = { FLOOR_Y*0.50, FLOOR_Y*0.62, FLOOR_Y*0.74, FLOOR_Y*0.86 }
     local SLOT_H      = 40 * SCALE
     for i, charName in ipairs(partyOrder) do
         local charData = sd and sd.unlockedCharacters and sd.unlockedCharacters[charName]
         local ss = charData and charData.stats or nil
-        local footY  = partyFeetYs[i] or (VH*0.50 + (i-1) * 55)
+        local footY  = partyFeetYs[i] or (FLOOR_Y*0.50 + (i-1) * 55)
         local spawnY = footY - SLOT_H / 2
         local id
         if charName == "knight" then
@@ -286,6 +290,7 @@ function M.update(dt)
         return
     end
 
+    ui.updateResource(battle, dt)
     particles.updateBlood(battle, dt, GRAVITY)
     particles.updateHeal(battle, dt)
     systems.targetFollow(world)
@@ -299,13 +304,13 @@ function M.update(dt)
     systems.threat(world, battle, dt)
     systems.moveTarget(world, dt)
     systems.antiClumping(world)
-    systems.physics(world, dt, VW, VH, BATTLE_LINE_Y, FRICTION, MASS)
+    systems.physics(world, dt, VW, FLOOR_Y, BATTLE_LINE_Y, FRICTION, MASS)
     anim_mod.updateTimers(world, dt)
     systems.death(world, battle, dt)
     systems.vfxDecay(battle, dt, common)
     ui.updateIconScaleAnimations(world, battle, dt)
     ui.updateSelCircles(world, battle, dt)
-    enc_mgr.system(world, battle, dt, VW, VH, SCALE, GRAVITY, ENEMY_DANGER)
+    enc_mgr.system(world, battle, dt, VW, FLOOR_Y, SCALE, GRAVITY, ENEMY_DANGER)
 
     -- Hover detection for plate highlighting
     do
@@ -358,10 +363,15 @@ function M.keypressed(key)
     if slot then
         local skill = sk.list[slot]
         if skill and skill.cd <= 0 then
+            local cost = skill.resourceCost or 0
+            if cost > 0 and (not battle.resource or battle.resource.current < cost) then
+                goto skip_skill
+            end
             skill.cd = skill.cdMax; sk.pendingActive = slot
             combat.triggerActivationVFX(battle, su, world)
         end
     end
+    ::skip_skill::
 end
 
 function M.mousepressed(x, y, button)
