@@ -1,7 +1,8 @@
 -- screens/party_select.lua — Party select screen module
 
-local common = require("common")
-local save   = require("save")
+local common   = require("common")
+local save     = require("save")
+local anim_mod = require("encounter/anim")
 
 local VW = common.VW
 local VH = common.VH
@@ -13,26 +14,39 @@ local VH = common.VH
 local ICON_SIZE     = 55
 local PARTY_SLOTS   = 4
 local PARTY_GAP     = 16
-local PARTY_TOTAL_W = PARTY_SLOTS * ICON_SIZE + (PARTY_SLOTS - 1) * PARTY_GAP
-local PARTY_X       = math.floor((VW - PARTY_TOTAL_W) / 2)
+local PARTY_X       = 30
 local PARTY_Y       = 50
 
--- Roster cells are ICON_SIZE wide × (ICON_SIZE + NAME_H) tall, flush against each
--- other (no gap) so grid lines fall on exact cell boundaries.
+-- Roster cells are uniform ICON_SIZE × ICON_SIZE squares
 local ROSTER_COLS   = 6
 local ROSTER_ROWS   = 2
-local ROSTER_CELL_W = ICON_SIZE            -- 55
-local ROSTER_NAME_H = 14
-local ROSTER_CELL_H = ICON_SIZE + ROSTER_NAME_H  -- 69
-local ROSTER_INNER_W = ROSTER_COLS * ROSTER_CELL_W   -- 330
-local ROSTER_INNER_H = ROSTER_ROWS * ROSTER_CELL_H   -- 138
+local ROSTER_CELL_W = ICON_SIZE
+local ROSTER_CELL_H = ICON_SIZE
+local ROSTER_INNER_W = ROSTER_COLS * ROSTER_CELL_W
+local ROSTER_INNER_H = ROSTER_ROWS * ROSTER_CELL_H
 local ROSTER_PAD    = 8
-local ROSTER_OUTER_W = ROSTER_INNER_W + ROSTER_PAD * 2  -- 346
-local ROSTER_OUTER_H = ROSTER_INNER_H + ROSTER_PAD * 2  -- 154
-local ROSTER_X      = math.floor((VW - ROSTER_OUTER_W) / 2)   -- 227
+local ROSTER_OUTER_W = ROSTER_INNER_W + ROSTER_PAD * 2
+local ROSTER_OUTER_H = ROSTER_INNER_H + ROSTER_PAD * 2
+local ROSTER_X      = 30
 local ROSTER_Y      = 175
-local ROSTER_INNER_X = ROSTER_X + ROSTER_PAD   -- 235
-local ROSTER_INNER_Y = ROSTER_Y + ROSTER_PAD   -- 183
+local ROSTER_INNER_X = ROSTER_X + ROSTER_PAD
+local ROSTER_INNER_Y = ROSTER_Y + ROSTER_PAD
+
+-- Preview panel (right side)
+local PREVIEW_X      = 430
+local PREVIEW_Y      = 50
+local PREVIEW_W      = 280
+local PREVIEW_H      = 280
+local PREVIEW_NAME_Y = PREVIEW_Y + PREVIEW_H + 12
+
+-- Idle animation data for the preview panel
+local IDLE_DATA = {
+    knight   = { key = "KnightIdle",   path = "assets/characters/Knight/Idle.png",   frames = 10, fw = 135, fh = 135, scale = 1.0,  fl = 10/60 },
+    brigand  = { key = "BrigandIdle",  path = "assets/characters/Brigand/Idle.png",  frames = 10, fw = 126, fh = 126, scale = 1.0,  fl = 10/60 },
+    nomad    = { key = "NomadIdle",    path = "assets/characters/Nomad/Idle.png",    frames =  8, fw = 250, fh = 250, scale = 0.54, fl =  8/60 },
+    champion = { key = "ChampionIdle", path = "assets/characters/Champion/Idle.png", frames = 10, fw = 128, fh = 111, scale = 1.0,  fl = 10/60 },
+    duelist  = { key = "DuelistIdle",  path = "assets/characters/Duelist/Idle.png",  frames =  8, fw = 200, fh = 200, scale = 0.54, fl =  8/60 },
+}
 
 local AX      = common.ARROW_X
 local AY      = common.ARROW_Y
@@ -53,11 +67,13 @@ local icons    = {}   -- { [charName] = Image }
 local drag     = { active = false }
 local swapAnim = nil  -- animates a displaced icon to its new home
 
-local assetsLoaded = false
-local font          -- size 14, slot number labels
-local nameFont      -- size 10, character name labels
-local hoveredBack  = false
-local pressedItem  = nil   -- "back" or nil
+local assetsLoaded  = false
+local font           -- size 14, slot number labels
+local previewFont    -- size 24, preview character name
+local hoveredBack   = false
+local pressedItem   = nil   -- "back" or nil
+local hoveredChar   = nil
+local previewTimer  = 0
 local box          = common.newBox()
 
 -- ============================================================================
@@ -207,8 +223,13 @@ function M.onEnter(canvas, postfx, sw, saveData, slot)
 
     if not assetsLoaded then
         assetsLoaded = true
-        font     = common.loadFont(14)
-        nameFont = common.loadFont(10)
+        font        = common.loadFont(14)
+        previewFont = common.loadFont(24)
+        for _, d in pairs(IDLE_DATA) do
+            if not anim_mod.db[d.key] then
+                anim_mod.load(d.key, d.path, d.frames, d.fw, d.fh, d.scale)
+            end
+        end
     end
     -- Load any icons not yet cached (handles new characters across save slots)
     for name in pairs(uc) do
@@ -218,10 +239,12 @@ function M.onEnter(canvas, postfx, sw, saveData, slot)
         end
     end
 
-    drag        = { active = false }
-    swapAnim    = nil
-    hoveredBack = false
-    pressedItem = nil
+    drag         = { active = false }
+    swapAnim     = nil
+    hoveredBack  = false
+    pressedItem  = nil
+    hoveredChar  = nil
+    previewTimer = 0
 
     common.initBox(box, AX - BOX_PAD, AY - BOX_PAD, A_W + BOX_PAD * 2, A_H + BOX_PAD * 2)
 end
@@ -266,7 +289,7 @@ function M.update(dt)
         if not partyHit then
             for idx = 1, #roster do
                 if not (drag.active and drag.srcType == "roster" and drag.srcIdx == idx) then
-                    local rx, ry, rw, rh = getRosterCellRect(idx)
+                    local rx, ry, rw = getRosterCellRect(idx)
                     if vmx >= rx and vmx < rx + rw and vmy >= ry and vmy < ry + ICON_SIZE then
                         common.setBoxTarget(box, rx, ry, ROSTER_CELL_W, ICON_SIZE)
                         break
@@ -277,6 +300,31 @@ function M.update(dt)
     end
 
     common.updateBox(box, dt)
+
+    -- Track hovered character for preview panel
+    hoveredChar = nil
+    if drag.active then
+        hoveredChar = drag.charName
+    else
+        for i = 1, PARTY_SLOTS do
+            local sx, sy, sw, sh = getPartySlotRect(i)
+            if vmx >= sx and vmx < sx + sw and vmy >= sy and vmy < sy + sh then
+                hoveredChar = party[i]
+                break
+            end
+        end
+        if not hoveredChar then
+            for idx = 1, #roster do
+                local rx, ry = getRosterCellRect(idx)
+                if vmx >= rx and vmx < rx + ICON_SIZE and vmy >= ry and vmy < ry + ICON_SIZE then
+                    hoveredChar = roster[idx]
+                    break
+                end
+            end
+        end
+    end
+
+    previewTimer = previewTimer + dt
 end
 
 function M.mousepressed(x, y, button)
@@ -306,7 +354,7 @@ function M.mousepressed(x, y, button)
     end
 
     for idx, name in ipairs(roster) do
-        local rx, ry, rw, rh = getRosterCellRect(idx)
+        local rx, ry, rw = getRosterCellRect(idx)
         if vmx >= rx and vmx < rx + rw and vmy >= ry and vmy < ry + ICON_SIZE then
             drag = {
                 active   = true,
@@ -353,25 +401,19 @@ local function drawScene()
 
     -- 2. Icons first (lines drawn on top afterwards)
 
-    -- Roster icons + name labels
-    love.graphics.setFont(nameFont)
+    -- Roster icons (no name labels)
     for idx, name in ipairs(roster) do
         local rx, ry = getRosterCellRect(idx)
         if not (drag.active and drag.srcType == "roster" and drag.srcIdx == idx) then
             drawIcon(name, rx, ry)
-            love.graphics.setColor(1, 1, 1, 1)
-            love.graphics.printf(string.upper(name), rx, ry + ICON_SIZE + 2, ROSTER_CELL_W, "center")
         end
     end
 
-    -- Party icons + number + name labels
-    love.graphics.setFont(nameFont)
+    -- Party icons (no name labels)
     for i = 1, PARTY_SLOTS do
         local sx, sy = getPartySlotRect(i)
         if party[i] then
             drawIcon(party[i], sx, sy)
-            love.graphics.setColor(1, 1, 1, 1)
-            love.graphics.printf(string.upper(party[i]), sx, sy + ICON_SIZE + 16, ICON_SIZE, "center")
         end
     end
 
@@ -405,13 +447,13 @@ local function drawScene()
         love.graphics.rectangle("line", sx, sy, ICON_SIZE, ICON_SIZE)
     end
 
-    -- 4. Party slot number labels (white)
+    -- 4. Party slot number labels at top (white)
     love.graphics.setFont(font)
     for i = 1, PARTY_SLOTS do
         local sx, sy = getPartySlotRect(i)
         local lbl = tostring(i)
         love.graphics.setColor(1, 1, 1, 1)
-        love.graphics.print(lbl, sx + (ICON_SIZE - font:getWidth(lbl)) / 2, sy + ICON_SIZE + 4)
+        love.graphics.print(lbl, sx + (ICON_SIZE - font:getWidth(lbl)) / 2, sy - font:getHeight() - 2)
     end
 
     -- 5. Animated following red box
@@ -420,7 +462,38 @@ local function drawScene()
     -- 6. Back arrow (above box so it stays visible when pressed/filled white)
     drawArrow()
 
-    -- 7. Dragged icon at cursor (absolute top)
+    -- 7. Preview panel (right side)
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.setLineWidth(2)
+    love.graphics.rectangle("line", PREVIEW_X, PREVIEW_Y, PREVIEW_W, PREVIEW_H)
+
+    if hoveredChar then
+        local data = IDLE_DATA[hoveredChar]
+        if data then
+            local entry = anim_mod.db[data.key]
+            if entry and entry.img then
+                local frame = math.floor(previewTimer / data.fl) % entry.frames
+                local q = entry.quads[frame]
+                if q then
+                    local fitScale = math.min(PREVIEW_W / entry.fw, PREVIEW_H / entry.fh) * 0.8
+                    local dw = entry.fw * fitScale
+                    local dh = entry.fh * fitScale
+                    love.graphics.setColor(1, 1, 1, 1)
+                    love.graphics.draw(entry.img, q,
+                        PREVIEW_X + (PREVIEW_W - dw) / 2,
+                        PREVIEW_Y + (PREVIEW_H - dh) / 2,
+                        0, fitScale, fitScale)
+                end
+            end
+        end
+
+        love.graphics.setFont(previewFont)
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.printf(string.upper(hoveredChar),
+            PREVIEW_X, PREVIEW_NAME_Y, PREVIEW_W, "center")
+    end
+
+    -- 8. Dragged icon at cursor (absolute top)
     if drag.active then
         drawIcon(drag.charName, drag.x - ICON_SIZE / 2, drag.y - ICON_SIZE / 2)
     end
