@@ -19,7 +19,7 @@ function M.newStats(hp, atk, def, crit)
         ATK_SPEED   = M.newStat(1.0),
         STAGGER_RES = M.newStat(1.0),
         MAX_STAGGER = M.newStat(50),
-        STAGGER_DUR = M.newStat(2),
+        STAGGER_DUR = M.newStat(3),
     }
 end
 
@@ -37,7 +37,7 @@ function M.fromSave(ss)
         ATK_SPEED   = M.newStat(ss.ATKSPD  or 1.0),
         STAGGER_RES = M.newStat(ss.STAGGERres or 1.0),
         MAX_STAGGER = M.newStat(ss.maxSTAGGER or 50),
-        STAGGER_DUR = M.newStat(ss.STAGGERdur or 2),
+        STAGGER_DUR = M.newStat(ss.STAGGERdur or 3),
     }
 end
 

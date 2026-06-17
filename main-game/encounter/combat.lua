@@ -45,6 +45,23 @@ function M.applyStagger(world, tgtId, dmg)
 end
 
 -- ============================================================================
+-- STUN
+-- ============================================================================
+
+function M.applyStun(world, tgtId, frames)
+    local sn = world.stun[tgtId]; if not sn then return end
+    local seconds = frames / 60
+    sn.timer = sn.timer + seconds
+    if not sn.stunned then
+        sn.stunned = true
+        local sg = world.stagger[tgtId]
+        if not (sg and sg.staggered) then
+            anim_mod.activateDeathAnim(world, tgtId, true)
+        end
+    end
+end
+
+-- ============================================================================
 -- THREAT
 -- ============================================================================
 
@@ -116,9 +133,11 @@ function M.registerHit(world, battle, srcId, tgtId, keywords, useVFX, SCALE, GRA
 
     local srcSide = world.side[srcId]
     if srcSide and srcSide.s == 0 then
+        local threatAmt = dmg * 0.5
+        if world.hasThreateningPresence[srcId] then threatAmt = threatAmt * 2 end
         for id in pairs(world.entities) do
             if world.side[id] and world.side[id].s == 1 then
-                M.addThreat(world, id, srcId, dmg * 0.5)
+                M.addThreat(world, id, srcId, threatAmt)
             end
         end
     end
