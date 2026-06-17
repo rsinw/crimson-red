@@ -23,6 +23,7 @@ local function applyBaseComponents(world, id, x, y, w, h, side, st, opts)
     world.stats[id]        = st
     world.locks[id]        = {actionLock=0, moveLock=0}
     world.stagger[id]      = {points=0, staggered=false, timer=0}
+    world.stun[id]         = {stunned=false, timer=0}
     world.tintColor[id]    = {R=0, G=0, B=0}
     world.bar[id]          = {hpColor = opts.hpColor or {0, 1, 0}, hpPrevRatio=1, timer=0}
     world.effects_comp[id] = {pending={}, active={}}
@@ -48,12 +49,14 @@ function M.createKnight(world, battle, x, y, saveStats, SCALE, GRAVITY)
     world.skills[id] = {
         list  = {
             [0] = skills_mod.newKnightAutoAttackSkill(SCALE, GRAVITY),
-            [1] = skills_mod.newKnightSlashSkill(SCALE, GRAVITY),
+            [1] = skills_mod.newKnightSunderArmorSkill(SCALE, GRAVITY),
             [2] = skills_mod.newKnightDefendSkill(),
+            [3] = skills_mod.newKnightChallengingShoutSkill(),
         },
         queue = {}, gcd = 0, pendingActive = nil,
     }
-    -- Passive effects
+    -- Passives
+    world.hasThreateningPresence[id] = true
     local ec = world.effects_comp[id]
     table.insert(ec.pending, effects_mod.newKnightRage(id))
 
@@ -109,7 +112,12 @@ function M.createNomad(world, battle, x, y, saveStats, SCALE)
         [5] = anim_mod.newInst("NomadDeath",   6/60, false, false),
     }}
     world.skills[id] = {
-        list  = {[0]=skills_mod.newNomadAutoHealSkill(SCALE)},
+        list  = {
+            [0] = skills_mod.newNomadAutoHealSkill(SCALE),
+            [1] = skills_mod.newNomadGrantPowerSkill(),
+            [2] = skills_mod.newNomadMendWoundsSkill(),
+            [3] = skills_mod.newNomadSparkOfInspirationSkill(),
+        },
         queue = {}, gcd = 0, pendingActive = nil,
     }
     battle.selCircleScales[id] = 0

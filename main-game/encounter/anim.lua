@@ -33,7 +33,8 @@ function M.updateTimers(world, dt)
         if ac.list[2] then
             local ph = world.physics[id]
             local sg = world.stagger[id]
-            local moving = not (sg and sg.staggered) and
+            local sn = world.stun[id]
+            local moving = not (sg and sg.staggered) and not (sn and sn.stunned) and
                            ((mt and mt.active) or (ph and (math.abs(ph.vx)>5 or math.abs(ph.vy)>5)))
             ac.list[2].active = moving or false
         end
@@ -55,21 +56,6 @@ function M.updateTimers(world, dt)
         end
         ::continue::
     end
-end
-
--- Tint helper: renders the sprite with a color channel overlay
-local function drawTinted(img, q, x, y, sx, sy, fw, fh, channel, intensity)
-    local dim = (255 - intensity) / 255
-    love.graphics.setColor(dim, dim, dim, 1)
-    love.graphics.draw(img, q, x, y, 0, sx, sy, fw/2, fh/2)
-    love.graphics.setBlendMode("add")
-    if channel == "R" then
-        love.graphics.setColor(intensity/255, 0, 0, 1)
-    else
-        love.graphics.setColor(0, intensity/255, 0, 1)
-    end
-    love.graphics.draw(img, q, x, y, 0, sx, sy, fw/2, fh/2)
-    love.graphics.setBlendMode("alpha")
 end
 
 -- Sort entities by foot Y for correct draw order
@@ -124,16 +110,40 @@ function M.drawEntities(world, battle, SCALE)
         local flipSign  = faceRight and 1 or -1
         local sx, sy    = flipSign * drawScale, drawScale
 
-        local tc = world.tintColor[id]
-        local rR = tc and tc.R or 0
-        local rG = tc and tc.G or 0
-        if rR > 1 then
-            drawTinted(dbEntry.img, q, pos.x, pos.y, sx, sy, fw, fh, "R", rR)
-        elseif rG > 1 then
-            drawTinted(dbEntry.img, q, pos.x, pos.y, sx, sy, fw, fh, "G", rG)
+        -- Draw sprite with effect tints (undulating RGB modifications)
+        local etList = world.effectTints[id]
+        if etList and #etList > 0 then
+            love.graphics.setColor(1, 1, 1, 1)
+            love.graphics.draw(dbEntry.img, q, pos.x, pos.y, 0, sx, sy, fw/2, fh/2)
+            love.graphics.setBlendMode("add")
+            for _, et in ipairs(etList) do
+                love.graphics.setColor(et.R * et.intensity, et.G * et.intensity, et.B * et.intensity, 1)
+                love.graphics.draw(dbEntry.img, q, pos.x, pos.y, 0, sx, sy, fw/2, fh/2)
+            end
+            love.graphics.setBlendMode("alpha")
         else
             love.graphics.setColor(1, 1, 1, 1)
             love.graphics.draw(dbEntry.img, q, pos.x, pos.y, 0, sx, sy, fw/2, fh/2)
+        end
+
+        -- Hurt/heal indicator overlays (opaque colored rectangles that fade)
+        local sz = world.size[id]
+        if sz then
+            local ec = world.effects_comp[id]
+            if ec then
+                for _, eff in ipairs(ec.active) do
+                    if eff.alpha and eff.alpha > 0 and eff.target == id then
+                        local ow, oh = sz.w, sz.h
+                        local ox, oy = pos.x - ow/2, pos.y - oh/2
+                        if eff.isHeal then
+                            love.graphics.setColor(0, 1, 0, eff.alpha * 0.6)
+                        else
+                            love.graphics.setColor(1, 0, 0, eff.alpha * 0.6)
+                        end
+                        love.graphics.rectangle("fill", ox, oy, ow, oh)
+                    end
+                end
+            end
         end
 
         -- Selection highlight: additive white overlay on selected/pressed party unit

@@ -50,10 +50,12 @@ local function initWorld()
         position     = {},  size        = {},  facing      = {},
         physics      = {},  moveTarget  = {},  entityTarget = {},
         side         = {},  stats       = {},  locks        = {},
-        stagger      = {},  skills      = {},  effects_comp = {},
+        stagger      = {},  stun        = {},  skills      = {},  effects_comp = {},
         bar          = {},  tintColor   = {},  threatMap    = {},
+        effectTints  = {},
         anim         = {},  hasEntered  = {},  deathState   = {},
         isRanged     = {},  targetSide  = {},  dangerLevel = {},
+        hasThreateningPresence = {},
     }
     function world:new()
         local id = self.nextId; self.nextId = id + 1
@@ -193,7 +195,7 @@ local function drawScene(dt)
 
     love.graphics.setFont(battle.smallFont)
     love.graphics.setColor(1, 1, 1, 0.55)
-    love.graphics.print("1-2: select  Q: slash  W: defend  K: spawn skeleton  RClick: target/move  Esc: retreat", 5, VH-14)
+    love.graphics.print("1-2: select  Q/W/E: skills  K: spawn skeleton  RClick: target/move  Esc: retreat", 5, VH-14)
     love.graphics.setColor(1, 1, 1, 1)
 end
 
@@ -291,7 +293,9 @@ function M.update(dt)
     skills_mod.autoAttackSystem(world)
     skills_mod.system(world, battle, dt)
     effects_mod.system(world, battle, dt)
+    effects_mod.effectTintSystem(world, dt)
     systems.stagger(world, dt)
+    systems.stunSystem(world, dt)
     systems.threat(world, battle, dt)
     systems.moveTarget(world, dt)
     systems.antiClumping(world)

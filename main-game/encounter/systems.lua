@@ -64,6 +64,7 @@ function M.moveTarget(world, dt)
         if hasActiveAction(world, id) then mt.active = false; goto continue end
         local lk = world.locks[id]; if lk and lk.moveLock > 0 then goto continue end
         local sg = world.stagger[id]; if sg and sg.staggered then goto continue end
+        local sn = world.stun[id]; if sn and sn.stunned then goto continue end
         local pos, sz, ss, ph = world.position[id], world.size[id], world.stats[id], world.physics[id]
         if not (pos and sz and ss and ph) then goto continue end
         local dx = mt.x - pos.x; local dy = mt.y - (pos.y + sz.h/2)
@@ -192,10 +193,16 @@ function M.stagger(world, dt)
                     local entry = anim_mod.db[da and da.name]
                     if entry and da and da.timer >= da.frameLength * entry.frames then
                         sg.staggered = false; sg.reversingAnim = false
-                        da.active = false; da.reverse = nil; da.timer = 0
                         local ss = world.stats[id]
                         if ss then ss.RES.add = ss.RES.add - 1 end
-                        if ac.list[1] then ac.list[1].active = true end
+                        local sn = world.stun[id]
+                        if sn and sn.stunned and sn.timer > 0 then
+                            da.active = true; da.timer = da.frameLength * entry.frames
+                            da.reverse = nil; da.holdAtEnd = true
+                        else
+                            da.active = false; da.reverse = nil; da.timer = 0
+                            if ac.list[1] then ac.list[1].active = true end
+                        end
                     end
                 end
             else
@@ -215,6 +222,50 @@ function M.stagger(world, dt)
         if lk then
             lk.actionLock = math.max(0, lk.actionLock - dt)
             lk.moveLock   = math.max(0, lk.moveLock - dt)
+        end
+        ::continue::
+    end
+end
+
+-- ============================================================================
+-- STUN
+-- ============================================================================
+
+function M.stunSystem(world, dt)
+    for id in pairs(world.entities) do
+        if world.deathState[id] then goto continue end
+        local sn = world.stun[id]; if not (sn and sn.stunned) then goto continue end
+        local sg = world.stagger[id]
+        if sg and sg.staggered then goto continue end
+        sn.timer = sn.timer - dt
+        if sn.timer <= 0 then
+            sn.stunned = false
+            sn.timer = 0
+            local ac = world.anim[id]
+            if ac then
+                local di = anim_mod.getDeathAnimIdx(world, id)
+                if di > 0 then
+                    local da = ac.list[di]
+                    da.active = true; da.timer = 0; da.reverse = true; da.holdAtEnd = false
+                    sn.reversingAnim = true
+                end
+            end
+        end
+        ::continue::
+    end
+    for id in pairs(world.entities) do
+        if world.deathState[id] then goto continue end
+        local sn = world.stun[id]; if not (sn and sn.reversingAnim) then goto continue end
+        local di = anim_mod.getDeathAnimIdx(world, id)
+        local ac = world.anim[id]
+        if ac and di > 0 then
+            local da = ac.list[di]
+            local entry = anim_mod.db[da and da.name]
+            if entry and da and da.timer >= da.frameLength * entry.frames then
+                sn.reversingAnim = false
+                da.active = false; da.reverse = nil; da.timer = 0
+                if ac.list[1] then ac.list[1].active = true end
+            end
         end
         ::continue::
     end

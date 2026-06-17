@@ -33,24 +33,17 @@ function M.system(world, battle, dt)
 end
 
 -- ============================================================================
--- INDICATOR EFFECTS (tint flash on hit/heal)
+-- INDICATOR EFFECTS (opaque colored overlay that fades)
 -- ============================================================================
 
 function M.newHurtIndicator(tgtId)
     return {
         startFlag=true, endFlag=false,
-        target=tgtId, addedR=255, remaining=255, decayRate=600,
-        start  = function(w, b, eff)
-            local tc = w.tintColor[eff.target]
-            if tc then tc.R = math.min(255, tc.R + eff.addedR) end
-            eff.startFlag = false
-        end,
+        target=tgtId, alpha=1.0, decayRate=2.5,
+        start  = function(w, b, eff) eff.startFlag = false end,
         active = function(w, b, eff, dt)
-            local sub = math.min(eff.decayRate * dt, eff.remaining)
-            local tc  = w.tintColor[eff.target]
-            if tc then tc.R = math.max(0, tc.R - sub) end
-            eff.remaining = eff.remaining - sub
-            if eff.remaining <= 0 then eff.endFlag = true end
+            eff.alpha = eff.alpha - eff.decayRate * dt
+            if eff.alpha <= 0 then eff.endFlag = true end
         end,
     }
 end
@@ -58,18 +51,11 @@ end
 function M.newHealIndicator(tgtId)
     return {
         startFlag=true, endFlag=false,
-        target=tgtId, addedG=255, remaining=255, decayRate=600,
-        start  = function(w, b, eff)
-            local tc = w.tintColor[eff.target]
-            if tc then tc.G = math.min(255, tc.G + eff.addedG) end
-            eff.startFlag = false
-        end,
+        target=tgtId, alpha=1.0, decayRate=2.5, isHeal=true,
+        start  = function(w, b, eff) eff.startFlag = false end,
         active = function(w, b, eff, dt)
-            local sub = math.min(eff.decayRate * dt, eff.remaining)
-            local tc  = w.tintColor[eff.target]
-            if tc then tc.G = math.max(0, tc.G - sub) end
-            eff.remaining = eff.remaining - sub
-            if eff.remaining <= 0 then eff.endFlag = true end
+            eff.alpha = eff.alpha - eff.decayRate * dt
+            if eff.alpha <= 0 then eff.endFlag = true end
         end,
     }
 end
@@ -156,13 +142,14 @@ end
 function M.newKnightDefend(srcId, statGet)
     return {
         startFlag=true, endFlag=false, isAction=false, isActionEffect=false, skillSlot=2,
-        src=srcId, timer=10.0, drainPerSec=0,
+        src=srcId, timer=10.0, drainPerSec=0, tintEntry=nil,
         start = function(w, b, eff)
             eff.startFlag = false
             local ss = w.stats[eff.src]; if not ss then return end
             local sg = w.stagger[eff.src]
             ss.RES.add = ss.RES.add - 0.5
             eff.drainPerSec = sg and (sg.points / 2 / 10) or 0
+            eff.tintEntry = M.addEffectTint(w, eff.src, 0, 0, 1, 4.0)
         end,
         active = function(w, b, eff, dt)
             if w.deathState[eff.src] then return end
@@ -177,8 +164,122 @@ function M.newKnightDefend(srcId, statGet)
         end_fn = function(w, b, eff)
             local ss = w.stats[eff.src]; if not ss then return end
             ss.RES.add = ss.RES.add + 0.5
+            if eff.tintEntry then M.removeEffectTint(w, eff.src, eff.tintEntry) end
         end,
     }
+end
+
+-- ============================================================================
+-- GRANT POWER (ATK mult +0.5 for 10 seconds, red undulating tint)
+-- ============================================================================
+
+function M.newGrantPower(tgtId)
+    return {
+        startFlag=true, endFlag=false,
+        target=tgtId, timer=10.0, tintEntry=nil,
+        start = function(w, b, eff)
+            eff.startFlag = false
+            local ss = w.stats[eff.target]; if not ss then return end
+            ss.ATK.mult = ss.ATK.mult + 0.5
+            eff.tintEntry = M.addEffectTint(w, eff.target, 1, 0, 0, 4.0)
+        end,
+        active = function(w, b, eff, dt)
+            eff.timer = eff.timer - dt
+            if eff.timer <= 0 then eff.endFlag = true end
+        end,
+        end_fn = function(w, b, eff)
+            local ss = w.stats[eff.target]; if not ss then return end
+            ss.ATK.mult = ss.ATK.mult - 0.5
+            if eff.tintEntry then M.removeEffectTint(w, eff.target, eff.tintEntry) end
+        end,
+    }
+end
+
+-- ============================================================================
+-- MEND WOUNDS (heal over time for 10 seconds, green undulating tint, no particles)
+-- ============================================================================
+
+function M.newMendWounds(srcId, tgtId, statGet)
+    local ss = statGet and statGet
+    return {
+        startFlag=true, endFlag=false,
+        src=srcId, target=tgtId, timer=10.0, tintEntry=nil, statGet=ss,
+        start = function(w, b, eff)
+            eff.startFlag = false
+            eff.tintEntry = M.addEffectTint(w, eff.target, 0, 1, 0, 4.0)
+        end,
+        active = function(w, b, eff, dt)
+            eff.timer = eff.timer - dt
+            if eff.timer <= 0 then eff.endFlag = true; return end
+            if not w.entities[eff.target] or w.deathState[eff.target] then return end
+            local srcStats = w.stats[eff.src]
+            local tgtStats = w.stats[eff.target]
+            if not (srcStats and tgtStats) then return end
+            local totalHeal = 5 * eff.statGet(srcStats.ATK)
+            local healPerSec = totalHeal / 10
+            local amount = healPerSec * dt
+            local maxHp = eff.statGet(tgtStats.maxHP)
+            tgtStats.HP.base = math.min(maxHp, tgtStats.HP.base + amount)
+        end,
+        end_fn = function(w, b, eff)
+            if eff.tintEntry then M.removeEffectTint(w, eff.target, eff.tintEntry) end
+        end,
+    }
+end
+
+-- ============================================================================
+-- SUNDER ARMOR (reduces DEF by 1 for 10 seconds, stackable)
+-- ============================================================================
+
+function M.newSunderArmor(tgtId)
+    return {
+        startFlag=true, endFlag=false,
+        target=tgtId, timer=10.0,
+        start = function(w, b, eff)
+            eff.startFlag = false
+            local ss = w.stats[eff.target]; if not ss then return end
+            ss.DEF.add = ss.DEF.add - 1
+        end,
+        active = function(w, b, eff, dt)
+            eff.timer = eff.timer - dt
+            if eff.timer <= 0 then eff.endFlag = true end
+        end,
+        end_fn = function(w, b, eff)
+            local ss = w.stats[eff.target]; if not ss then return end
+            ss.DEF.add = ss.DEF.add + 1
+        end,
+    }
+end
+
+-- ============================================================================
+-- EFFECT TINT HELPERS
+-- ============================================================================
+
+function M.addEffectTint(world, id, r, g, b, speed)
+    if not world.effectTints[id] then world.effectTints[id] = {} end
+    local entry = {R=r, G=g, B=b, intensity=0, speed=speed or 4.0, timer=0}
+    table.insert(world.effectTints[id], entry)
+    return entry
+end
+
+function M.removeEffectTint(world, id, entry)
+    local list = world.effectTints[id]; if not list then return end
+    for i, e in ipairs(list) do
+        if e == entry then table.remove(list, i); return end
+    end
+end
+
+-- ============================================================================
+-- EFFECT TINT SYSTEM (updates undulating intensities)
+-- ============================================================================
+
+function M.effectTintSystem(world, dt)
+    for id, list in pairs(world.effectTints) do
+        for _, e in ipairs(list) do
+            e.timer = e.timer + dt
+            e.intensity = 0.5 + 0.5 * math.sin(e.timer * e.speed)
+        end
+    end
 end
 
 -- ============================================================================
