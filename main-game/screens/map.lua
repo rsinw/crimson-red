@@ -356,11 +356,12 @@ function M.onEnter(canvas, postfx, sw, sd, slot)
             }
         ]])
 
-        icons.unknown = love.graphics.newImage("assets/icons/mapicon-unknown.png")
-        icons.tree    = love.graphics.newImage("assets/icons/mapicon-tree.png")
-        icons.water   = love.graphics.newImage("assets/icons/mapicon-ocean.png")
-        icons.shop    = love.graphics.newImage("assets/icons/mapicon-shop.png")
-        icons.player  = love.graphics.newImage("assets/icons/mapicon-player.png")
+        icons.unknown   = love.graphics.newImage("assets/icons/mapicon-unknown.png")
+        icons.tree      = love.graphics.newImage("assets/icons/mapicon-tree.png")
+        icons.water     = love.graphics.newImage("assets/icons/mapicon-ocean.png")
+        icons.shop      = love.graphics.newImage("assets/icons/mapicon-shop.png")
+        icons.player    = love.graphics.newImage("assets/icons/mapicon-player.png")
+        icons.encounter = love.graphics.newImage("assets/icons/encounter.png")
         for _, img in pairs(icons) do img:setFilter("nearest", "nearest") end
     end
 
@@ -482,10 +483,7 @@ local function drawTile(c, r)
         elseif t == T_WATER then
             drawIcon(icons.water, sx, sy)
         elseif t == T_ENCOUNTER then
-            love.graphics.setColor(1, 0.5, 0, 1)
-            local cx2 = sx + TILE_SIZE/2; local cy2 = sy + TILE_SIZE/2
-            love.graphics.rectangle("fill", cx2-10, cy2-4, 20, 8)
-            love.graphics.rectangle("fill", cx2-4, cy2-10, 8, 20)
+            drawIcon(icons.encounter, sx, sy)
         elseif t == T_SHOP then
             drawIcon(icons.shop, sx, sy)
         end
