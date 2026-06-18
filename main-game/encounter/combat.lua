@@ -24,7 +24,7 @@ end
 function M.resolveHit(world, srcId, tgtId)
     local ss, ts = world.stats[srcId], world.stats[tgtId]
     if not (ss and ts) then return "HIT" end
-    local crit = math.max(0, statGet(ss.CRIT) - statGet(ts.CRIT_DEF))
+    local crit = math.max(0, statGet(ss.CRIT) * (1 - statGet(ts.CRIT_DEF)))
     return math.random() < crit and "CRIT" or "HIT"
 end
 
@@ -41,6 +41,8 @@ function M.applyStagger(world, tgtId, dmg)
         sg.timer = statGet(ss.STAGGER_DUR); sg.reversingAnim = false
         ss.RES.add = ss.RES.add + 1
         anim_mod.activateDeathAnim(world, tgtId, true)
+        local lk = world.locks[tgtId]
+        if lk then lk.actionLock = 9999 end
     end
 end
 
@@ -58,6 +60,8 @@ function M.applyStun(world, tgtId, frames)
         if not (sg and sg.staggered) then
             anim_mod.activateDeathAnim(world, tgtId, true)
         end
+        local lk = world.locks[tgtId]
+        if lk then lk.actionLock = 9999 end
     end
 end
 
@@ -74,13 +78,6 @@ end
 -- FACING
 -- ============================================================================
 
-function M.faceTarget(world, srcId, tgtId)
-    local sp, tp = world.position[srcId], world.position[tgtId]
-    if sp and tp and world.facing[srcId] then
-        world.facing[srcId].right = (tp.x >= sp.x)
-    end
-end
-
 -- ============================================================================
 -- MELEE RANGE CHECK
 -- ============================================================================
@@ -91,7 +88,7 @@ function M.checkMeleeRange(world, srcId, tgtId)
     if not (sp and ss and tp and ts) then return false end
     local dx = math.max(0, math.abs(sp.x-tp.x) - (ss.w/2+ts.w/2))
     local dy = math.max(0, math.abs(sp.y-tp.y) - (ss.h/2+ts.h/2))
-    return math.sqrt(dx*dx+dy*dy) <= ss.w * 0.25
+    return dx <= 6 and dy <= 2
 end
 
 -- ============================================================================
@@ -120,6 +117,7 @@ end
 
 function M.registerHit(world, battle, srcId, tgtId, keywords, useVFX, SCALE, GRAVITY)
     if not (world.entities[srcId] and world.entities[tgtId]) then return end
+    if world.hasAttacked then world.hasAttacked[srcId] = true end
     local verdict = M.resolveHit(world, srcId, tgtId)
     local isCrit  = (verdict == "CRIT")
     local dmg     = M.calcNormalDmg(world, srcId, tgtId, 1.0)
@@ -129,16 +127,13 @@ function M.registerHit(world, battle, srcId, tgtId, keywords, useVFX, SCALE, GRA
     if ts then ts.HP.base = math.max(0, ts.HP.base - dmg) end
 
     M.applyStagger(world, tgtId, dmg)
-    M.faceTarget(world, srcId, tgtId)
 
     local srcSide = world.side[srcId]
     if srcSide and srcSide.s == 0 then
         local threatAmt = dmg * 0.5
         if world.hasThreateningPresence[srcId] then threatAmt = threatAmt * 2 end
-        for id in pairs(world.entities) do
-            if world.side[id] and world.side[id].s == 1 then
-                M.addThreat(world, id, srcId, threatAmt)
-            end
+        if world.threatMap[tgtId] then
+            M.addThreat(world, tgtId, srcId, threatAmt)
         end
     end
 
@@ -154,7 +149,7 @@ function M.registerHit(world, battle, srcId, tgtId, keywords, useVFX, SCALE, GRA
         local len = math.sqrt(dx*dx + dy*dy)
         if len > 0.001 then dx, dy = dx/len, dy/len end
         local kbEc = world.effects_comp[tgtId]
-        if kbEc then table.insert(kbEc.pending, effects_mod.newForce(tgtId, dx*400, dy*150, 0.12)) end
+        if kbEc then table.insert(kbEc.pending, effects_mod.newForce(tgtId, dx*60, dy*25, 0.12)) end
     end
 
     effects_mod.readTagSystem(world, battle, {src=srcId, tgt=tgtId, keywords=keywords or {}, amount=dmg})

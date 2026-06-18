@@ -27,6 +27,8 @@ local function applyBaseComponents(world, id, x, y, w, h, side, st, opts)
     world.tintColor[id]    = {R=0, G=0, B=0}
     world.bar[id]          = {hpColor = opts.hpColor or {0, 1, 0}, hpPrevRatio=1, timer=0}
     world.effects_comp[id] = {pending={}, active={}}
+    if world.spriteOffset  then world.spriteOffset[id]  = {x = opts.spriteOffsetX or 0, y = opts.spriteOffsetY or 0} end
+    if world.hasAttacked   then world.hasAttacked[id]   = nil end
     if opts.isRanged then world.isRanged[id] = true end
 end
 
@@ -70,7 +72,8 @@ end
 
 function M.createSkeleton(world, battle, x, y, SCALE, GRAVITY, ENEMY_DANGER)
     local id = world:new()
-    local st = stats_mod.newStats(80, 8, 3, 0.05)
+    local st = stats_mod.newStats(80, 8, 3, 0.05, 2.5)
+    st.MOVE_SPEED.base = 1.5
     applyBaseComponents(world, id, x, y, 40*SCALE, 40*SCALE, 1, st, {
         hpColor = {1, 1, 0},
         faceRight = false,
@@ -80,9 +83,9 @@ function M.createSkeleton(world, battle, x, y, SCALE, GRAVITY, ENEMY_DANGER)
     world.hasEntered[id]  = {h=false, v=false}
     world.dangerLevel[id] = ENEMY_DANGER.skeleton
     world.anim[id] = {list={
-        [1] = anim_mod.newInst("SkeletonIdle",    4/60, true,  true),
-        [2] = anim_mod.newInst("SkeletonMove",    4/60, true,  false),
-        [3] = anim_mod.newInst("SkeletonAttack",  3/60, false, false),
+        [1] = anim_mod.newInst("SkeletonIdle",    8/60, true,  true),
+        [2] = anim_mod.newInst("SkeletonMove",    8/60, true,  false),
+        [3] = anim_mod.newInst("SkeletonAttack",  6/60, false, false),
         [4] = anim_mod.newInst("SkeletonDeath",   6/60, false, false),
     }}
     world.skills[id] = {list={[0]=skills_mod.newSkeletonAutoAttackSkill(SCALE, GRAVITY)}, queue={}, gcd=0}
@@ -97,13 +100,79 @@ function M.createSkeleton(world, battle, x, y, SCALE, GRAVITY, ENEMY_DANGER)
 end
 
 -- ============================================================================
+-- BRIGAND
+-- ============================================================================
+
+function M.createBrigand(world, battle, x, y, saveStats, SCALE, GRAVITY)
+    local id = world:new()
+    local st = saveStats and stats_mod.fromSave(saveStats) or stats_mod.newStats(100, 10, 5, 0.10)
+    applyBaseComponents(world, id, x, y, 30*SCALE, 40*SCALE, 0, st, {spriteOffsetY=5})
+    world.anim[id] = {list={
+        [1] = anim_mod.newInst("BrigandIdle",    10/60, true,  true),
+        [2] = anim_mod.newInst("BrigandMove",     6/60, true,  false),
+        [3] = anim_mod.newInst("BrigandAttack1",  6/60, false, false),
+        [4] = anim_mod.newInst("BrigandDeath",    6/60, false, false),
+    }}
+    world.skills[id] = {
+        list  = { [0] = skills_mod.newBrigandAutoAttackSkill(SCALE, GRAVITY) },
+        queue = {}, gcd = 0, pendingActive = nil,
+    }
+    battle.selCircleScales[id] = 0
+    return id
+end
+
+-- ============================================================================
+-- CHAMPION
+-- ============================================================================
+
+function M.createChampion(world, battle, x, y, saveStats, SCALE, GRAVITY)
+    local id = world:new()
+    local st = saveStats and stats_mod.fromSave(saveStats) or stats_mod.newStats(100, 10, 5, 0.10)
+    applyBaseComponents(world, id, x, y, 32*SCALE, 52*SCALE, 0, st, {spriteOffsetY=-35})
+    world.anim[id] = {list={
+        [1] = anim_mod.newInst("ChampionIdle",    10/60, true,  true),
+        [2] = anim_mod.newInst("ChampionMove",     6/60, true,  false),
+        [3] = anim_mod.newInst("ChampionAttack1",  6/60, false, false),
+        [4] = anim_mod.newInst("ChampionDeath",    6/60, false, false),
+    }}
+    world.skills[id] = {
+        list  = { [0] = skills_mod.newChampionAutoAttackSkill(SCALE, GRAVITY) },
+        queue = {}, gcd = 0, pendingActive = nil,
+    }
+    battle.selCircleScales[id] = 0
+    return id
+end
+
+-- ============================================================================
+-- DUELIST
+-- ============================================================================
+
+function M.createDuelist(world, battle, x, y, saveStats, SCALE, GRAVITY)
+    local id = world:new()
+    local st = saveStats and stats_mod.fromSave(saveStats) or stats_mod.newStats(100, 10, 5, 0.10)
+    applyBaseComponents(world, id, x, y, 27.6*SCALE, 41.88*SCALE, 0, st)
+    world.anim[id] = {list={
+        [1] = anim_mod.newInst("DuelistIdle",    10/60, true,  true),
+        [2] = anim_mod.newInst("DuelistMove",     6/60, true,  false),
+        [3] = anim_mod.newInst("DuelistAttack1",  6/60, false, false),
+        [4] = anim_mod.newInst("DuelistDeath",    6/60, false, false),
+    }}
+    world.skills[id] = {
+        list  = { [0] = skills_mod.newDuelistAutoAttackSkill(SCALE, GRAVITY) },
+        queue = {}, gcd = 0, pendingActive = nil,
+    }
+    battle.selCircleScales[id] = 0
+    return id
+end
+
+-- ============================================================================
 -- NOMAD
 -- ============================================================================
 
 function M.createNomad(world, battle, x, y, saveStats, SCALE)
     local id = world:new()
     local st = saveStats and stats_mod.fromSave(saveStats) or stats_mod.newStats(80, 8, 2, 0.05)
-    applyBaseComponents(world, id, x, y, 30*SCALE, 40*SCALE, 0, st, {isRanged=true, targetSide=0})
+    applyBaseComponents(world, id, x, y, 29.43*SCALE, 38.97*SCALE, 0, st, {isRanged=true, targetSide=0, spriteOffsetY=-18})
     world.anim[id] = {list={
         [1] = anim_mod.newInst("NomadIdle",    8/60, true,  true),
         [2] = anim_mod.newInst("NomadMove",    8/60, true,  false),

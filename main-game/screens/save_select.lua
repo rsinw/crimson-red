@@ -83,9 +83,11 @@ local function loadSlotInfo()
                 local party = data.partyOrder or {}
                 local names = {}
                 for _, name in ipairs(party) do
-                    local uc = data.unlockedCharacters and data.unlockedCharacters[name]
-                    local lv = uc and uc.level or 1
-                    names[#names+1] = string.upper(name) .. " Lv." .. lv
+                    if type(name) == "string" then
+                        local uc = data.unlockedCharacters and data.unlockedCharacters[name]
+                        local lv = uc and uc.level or 1
+                        names[#names+1] = string.upper(name) .. " Lv." .. lv
+                    end
                 end
                 saveSlots[i] = {
                     label   = "SAVE " .. i,
@@ -111,6 +113,7 @@ function M.onEnter(canvas, postfx, sw)
     canvas_ref = canvas
     postfx_ref = postfx
     switchFn   = sw
+    require("music_mgr").stop()
 
     postfx_ref.chromasep.radius = common.CHROMA_RADIUS
 
@@ -159,8 +162,10 @@ function M.mousereleased(x, y, button)
         local item = pressedItem
         pressedItem = nil
         if item == 1 then
+            common.playClickSound()
             switchFn("title")
         elseif item <= 4 then
+            common.playClickSound()
             local si = item - 1
             local data
             if save.exists(si) then

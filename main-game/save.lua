@@ -28,9 +28,9 @@ function M.delete(slot)
 end
 
 local DEFAULT_STATS = {
-    ATK=10, DEF=5, maxHP=100, SPD=80, ATKSPD=1.0,
+    ATK=10, DEF=5, maxHP=100, SPD=80, ATKSPD=2.0,
     CRIT=0.10, CRITDEF=0.05, RES=1.0, BOOST=1.0,
-    WGT=0, STR=0, maxSTAGGER=50, STAGGERdur=2, STAGGERres=1.0,
+    WGT=0, STR=0, maxSTAGGER=50, STAGGERdur=10, STAGGERres=1.0,
 }
 
 local function defaultChar()
@@ -45,7 +45,7 @@ end
 
 function M.defaultData()
     return {
-        partyOrder = {"knight"},
+        partyOrder = {"knight", false, false, false},
         unlockedCharacters = {
             knight   = defaultChar(),
             champion = defaultChar(),

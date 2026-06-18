@@ -1,7 +1,11 @@
 -- encounter/ui.lua — Bar rendering, skill icon rendering, selection circles
 
 local stats_mod = require("encounter/stats")
+local common    = require("common")
 local statGet   = stats_mod.get
+
+local VW = common.VW
+local VH = common.VH
 
 local M = {}
 
@@ -16,6 +20,20 @@ function M.updateSelCircles(world, battle, dt)
         local curr   = battle.selCircleScales[id] or 0.0
         battle.selCircleScales[id] = curr + (target - curr) * math.min(1, dt * 14)
     end
+end
+
+function M.drawShadows(world)
+    love.graphics.setColor(0, 0, 0, 0.35)
+    for id in pairs(world.entities) do
+        if world.deathState[id] then goto continue end
+        local pos, sz = world.position[id], world.size[id]
+        if not (pos and sz) then goto continue end
+        local rx = sz.w * 0.4
+        local ry = sz.w * 0.05
+        love.graphics.ellipse("fill", pos.x, pos.y + sz.h/2, rx, ry)
+        ::continue::
+    end
+    love.graphics.setColor(1, 1, 1, 1)
 end
 
 function M.drawSelectionCircles(world, battle)
@@ -143,10 +161,24 @@ function M.skillIconSystem(world, battle, dt)
                 love.graphics.setColor(0.5, 0.5, 0.5, 1)
                 love.graphics.rectangle("fill", cx-ICON_SIZE*sc/2, cy-ICON_SIZE*sc/2, ICON_SIZE*sc, ICON_SIZE*sc)
             end
-            if skill.cdMax > 0 and skill.cd > 0 then
-                local cdRatio = skill.cd / skill.cdMax
-                love.graphics.setColor(0, 0, 0, 0.65)
-                love.graphics.rectangle("fill", ix, iy, ICON_SIZE, ICON_SIZE*cdRatio)
+            -- Resource sweep: fills from top, shrinks as resource approaches cost
+            local cost   = skill.resourceCost or 0
+            local curRes = battle.resource or 0
+            if cost > 0 and curRes < cost then
+                local resRatio = (cost - curRes) / cost
+                love.graphics.setColor(0, 0, 0, 0.6)
+                love.graphics.rectangle("fill", ix, iy, ICON_SIZE, ICON_SIZE * resRatio)
+            end
+            -- Fixed cooldown: slight tint + centered second count
+            if skill.cd > 0 then
+                love.graphics.setColor(0, 0, 0, 0.45)
+                love.graphics.rectangle("fill", ix, iy, ICON_SIZE, ICON_SIZE)
+                love.graphics.setFont(battle.smallFont)
+                love.graphics.setColor(1, 1, 1, 1)
+                local cdStr = tostring(math.ceil(skill.cd))
+                local tw    = battle.smallFont:getWidth(cdStr)
+                local th    = battle.smallFont:getHeight()
+                love.graphics.print(cdStr, ix + (ICON_SIZE - tw) / 2, iy + (ICON_SIZE - th) / 2)
             end
             local scTarget = skill.iconScaleTarget or 1.0
             skill.iconScale = (skill.iconScale or 1.0) + (scTarget-(skill.iconScale or 1.0)) * math.min(1, dt*12)
@@ -157,6 +189,57 @@ function M.skillIconSystem(world, battle, dt)
         love.graphics.setLineWidth(1)
         love.graphics.setColor(0.5, 0.5, 0.5, 1)
         love.graphics.rectangle("line", ix, iy, ICON_SIZE, ICON_SIZE)
+    end
+    love.graphics.setColor(1, 1, 1, 1)
+end
+
+-- ============================================================================
+-- RESOURCE BAR (Clash Royale style, shared party pool)
+-- ============================================================================
+
+local RES_PER_SEG   = 5
+local RES_SEG_COUNT = 10
+local RES_BAR_H     = 8
+local RES_MARGIN_X  = 15
+local RES_SEG_GAP   = 2
+local RES_POP_EXTRA = 10  -- extra height added instantly when a segment fills
+local RES_BAR_Y     = VH - RES_BAR_H - 4
+
+function M.drawResourceBar(battle)
+    local resource = battle.resource or 0
+    local pops     = battle.resourcePops or {}
+    local totalW   = VW - 2 * RES_MARGIN_X
+    local segW     = (totalW - (RES_SEG_COUNT - 1) * RES_SEG_GAP) / RES_SEG_COUNT
+
+    for i = 1, RES_SEG_COUNT do
+        local segX      = RES_MARGIN_X + (i - 1) * (segW + RES_SEG_GAP)
+        local fillStart = (i - 1) * RES_PER_SEG
+        local fillEnd   = i * RES_PER_SEG
+        local pop       = pops[i] or 0
+        local extra     = pop * RES_POP_EXTRA
+        local cx        = segX + segW / 2
+        local cy        = RES_BAR_Y + RES_BAR_H / 2
+        local drawW     = segW + extra
+        local drawH     = RES_BAR_H + extra
+        local drawX     = cx - drawW / 2
+        local drawY     = cy - drawH / 2
+
+        love.graphics.setColor(0.15, 0.15, 0.15, 1)
+        love.graphics.rectangle("fill", drawX, drawY, drawW, drawH)
+
+        local filled
+        if resource >= fillEnd then
+            filled = 1.0
+        elseif resource > fillStart then
+            filled = (resource - fillStart) / RES_PER_SEG
+        else
+            filled = 0
+        end
+
+        if filled > 0 then
+            love.graphics.setColor(1, 1, 1, 1)
+            love.graphics.rectangle("fill", drawX, drawY, drawW * filled, drawH)
+        end
     end
     love.graphics.setColor(1, 1, 1, 1)
 end

@@ -14,7 +14,6 @@ local VH = common.VH
 local ICON_SIZE     = 55
 local PARTY_SLOTS   = 4
 local PARTY_GAP     = 16
-local PARTY_X       = 30
 local PARTY_Y       = 50
 
 -- Roster cells are uniform ICON_SIZE × ICON_SIZE squares
@@ -27,25 +26,30 @@ local ROSTER_INNER_H = ROSTER_ROWS * ROSTER_CELL_H
 local ROSTER_PAD    = 8
 local ROSTER_OUTER_W = ROSTER_INNER_W + ROSTER_PAD * 2
 local ROSTER_OUTER_H = ROSTER_INNER_H + ROSTER_PAD * 2
-local ROSTER_X      = 30
+local ROSTER_X      = 50
 local ROSTER_Y      = 175
 local ROSTER_INNER_X = ROSTER_X + ROSTER_PAD
 local ROSTER_INNER_Y = ROSTER_Y + ROSTER_PAD
 
+-- Center party slots above the roster grid
+local PARTY_TOTAL_W = PARTY_SLOTS * ICON_SIZE + (PARTY_SLOTS - 1) * PARTY_GAP
+local PARTY_X       = ROSTER_X + math.floor((ROSTER_OUTER_W - PARTY_TOTAL_W) / 2)
+
 -- Preview panel (right side)
-local PREVIEW_X      = 430
+local PREVIEW_X      = 450
 local PREVIEW_Y      = 50
 local PREVIEW_W      = 280
-local PREVIEW_H      = 280
+local PREVIEW_H      = 350
 local PREVIEW_NAME_Y = PREVIEW_Y + PREVIEW_H + 12
 
--- Idle animation data for the preview panel
+-- Idle animation data for the preview panel and icon cells.
+-- Idle animation data for the preview panel (scale/offsetY from sprite_values.txt)
 local IDLE_DATA = {
-    knight   = { key = "KnightIdle",   path = "assets/characters/Knight/Idle.png",   frames = 10, fw = 135, fh = 135, scale = 1.0,  fl = 10/60 },
-    brigand  = { key = "BrigandIdle",  path = "assets/characters/Brigand/Idle.png",  frames = 10, fw = 126, fh = 126, scale = 1.0,  fl = 10/60 },
-    nomad    = { key = "NomadIdle",    path = "assets/characters/Nomad/Idle.png",    frames =  8, fw = 250, fh = 250, scale = 0.54, fl =  8/60 },
-    champion = { key = "ChampionIdle", path = "assets/characters/Champion/Idle.png", frames = 10, fw = 128, fh = 111, scale = 1.0,  fl = 10/60 },
-    duelist  = { key = "DuelistIdle",  path = "assets/characters/Duelist/Idle.png",  frames =  8, fw = 200, fh = 200, scale = 0.54, fl =  8/60 },
+    knight   = { key = "KnightIdle",   path = "assets/characters/Knight/Idle.png",   frames = 10, fw = 135, fh = 135, scale = 1.1000, offsetY =   0, fl = 10/60 },
+    brigand  = { key = "BrigandIdle",  path = "assets/characters/Brigand/Idle.png",  frames = 10, fw = 126, fh = 126, scale = 0.9000, offsetY =   5, fl = 10/60 },
+    nomad    = { key = "NomadIdle",    path = "assets/characters/Nomad/Idle.png",    frames =  8, fw = 250, fh = 250, scale = 0.7200, offsetY = -18, fl =  8/60 },
+    champion = { key = "ChampionIdle", path = "assets/characters/Champion/Idle.png", frames =  8, fw = 160, fh = 111, scale = 1.0000, offsetY = -35, fl = 10/60 },
+    duelist  = { key = "DuelistIdle",  path = "assets/characters/Duelist/Idle.png",  frames =  8, fw = 200, fh = 200, scale = 0.9590, offsetY =   0, fl =  8/60 },
 }
 
 local AX      = common.ARROW_X
@@ -93,13 +97,16 @@ local function getRosterCellRect(idx)
            ROSTER_CELL_W, ROSTER_CELL_H
 end
 
-local function drawIcon(name, x, y)
+local function drawIcon(name, x, y, size)
+    size = size or ICON_SIZE
     local img = icons[name]
     if not img then return end
     local iw, ih = img:getDimensions()
+    local sc = math.min(size / iw, size / ih)
     love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.draw(img, x, y, 0, ICON_SIZE / iw, ICON_SIZE / ih)
+    love.graphics.draw(img, x + (size - iw * sc) / 2, y + (size - ih * sc) / 2, 0, sc, sc)
 end
+
 
 local function drawArrow()
     common.drawBackArrow(pressedItem == "back")
@@ -127,7 +134,7 @@ local function exit()
 
     local order = {}
     for i = 1, PARTY_SLOTS do
-        if party[i] then order[#order + 1] = party[i] end
+        order[i] = party[i] or false
     end
     saveData_ref.partyOrder = order
     save.write(slot_ref, saveData_ref)
@@ -200,13 +207,16 @@ function M.onEnter(canvas, postfx, sw, saveData, slot)
     switchFn     = sw
     saveData_ref = saveData
     slot_ref     = slot
+    require("music_mgr").play("forest")
 
     postfx_ref.chromasep.radius = common.CHROMA_RADIUS
 
     party = {}
     local inParty = {}
-    for i, name in ipairs(saveData.partyOrder or {}) do
-        if i <= PARTY_SLOTS then
+    local po = saveData.partyOrder or {}
+    for i = 1, PARTY_SLOTS do
+        local name = po[i]
+        if type(name) == "string" then
             party[i] = name
             inParty[name] = true
         end
@@ -246,7 +256,8 @@ function M.onEnter(canvas, postfx, sw, saveData, slot)
     hoveredChar  = nil
     previewTimer = 0
 
-    common.initBox(box, AX - BOX_PAD, AY - BOX_PAD, A_W + BOX_PAD * 2, A_H + BOX_PAD * 2)
+    local ix, iy = getPartySlotRect(1)
+    common.initBox(box, ix - BOX_PAD, iy - BOX_PAD, ICON_SIZE + BOX_PAD * 2, ICON_SIZE + BOX_PAD * 2)
 end
 
 function M.update(dt)
@@ -269,31 +280,34 @@ function M.update(dt)
         end
     end
 
-    -- Hover detection drives the animated box target
+    -- Hover detection
     hoveredBack = false
     if vmx >= AX and vmx < AX + A_W and vmy >= AY and vmy < AY + A_H then
         hoveredBack = true
         common.setBoxTarget(box, AX - BOX_PAD, AY - BOX_PAD, A_W + BOX_PAD * 2, A_H + BOX_PAD * 2)
+    end
+
+    -- Box follows dragged icon; otherwise tracks hovered icon cell (always icon-sized)
+    if drag.active then
+        common.setBoxTarget(box,
+            drag.x - ICON_SIZE / 2 - BOX_PAD,
+            drag.y - ICON_SIZE / 2 - BOX_PAD,
+            ICON_SIZE + BOX_PAD * 2, ICON_SIZE + BOX_PAD * 2, true)
     else
-        -- Check party slots (all 4, even empty)
-        local partyHit = false
+        local boxHit = false
         for i = 1, PARTY_SLOTS do
             local sx, sy, sw, sh = getPartySlotRect(i)
             if vmx >= sx and vmx < sx + sw and vmy >= sy and vmy < sy + sh then
                 common.setBoxTarget(box, sx - BOX_PAD, sy - BOX_PAD, sw + BOX_PAD * 2, sh + BOX_PAD * 2)
-                partyHit = true
-                break
+                boxHit = true; break
             end
         end
-        -- Check roster cells (only occupied ones)
-        if not partyHit then
+        if not boxHit then
             for idx = 1, #roster do
-                if not (drag.active and drag.srcType == "roster" and drag.srcIdx == idx) then
-                    local rx, ry, rw = getRosterCellRect(idx)
-                    if vmx >= rx and vmx < rx + rw and vmy >= ry and vmy < ry + ICON_SIZE then
-                        common.setBoxTarget(box, rx, ry, ROSTER_CELL_W, ICON_SIZE)
-                        break
-                    end
+                local rx, ry = getRosterCellRect(idx)
+                if vmx >= rx and vmx < rx + ROSTER_CELL_W and vmy >= ry and vmy < ry + ICON_SIZE then
+                    common.setBoxTarget(box, rx - BOX_PAD, ry - BOX_PAD, ROSTER_CELL_W + BOX_PAD * 2, ICON_SIZE + BOX_PAD * 2)
+                    break
                 end
             end
         end
@@ -376,6 +390,7 @@ function M.mousereleased(x, y, button)
 
     if pressedItem == "back" and hoveredBack then
         pressedItem = nil
+        common.playClickSound()
         exit()
         return
     end
@@ -428,18 +443,15 @@ local function drawScene()
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.setLineWidth(2)
 
-    -- Roster outer border
-    love.graphics.rectangle("line", ROSTER_X, ROSTER_Y, ROSTER_OUTER_W, ROSTER_OUTER_H)
-
-    -- Roster internal vertical grid lines (between columns)
-    for c = 1, ROSTER_COLS - 1 do
-        local lx = ROSTER_INNER_X + c * ROSTER_CELL_W
-        love.graphics.line(lx, ROSTER_Y, lx, ROSTER_Y + ROSTER_OUTER_H)
+    -- Roster cells as individual squares
+    for col = 0, ROSTER_COLS - 1 do
+        for row = 0, ROSTER_ROWS - 1 do
+            love.graphics.rectangle("line",
+                ROSTER_INNER_X + col * ROSTER_CELL_W,
+                ROSTER_INNER_Y + row * ROSTER_CELL_H,
+                ROSTER_CELL_W, ROSTER_CELL_H)
+        end
     end
-
-    -- Roster internal horizontal grid line (between rows)
-    local ly = ROSTER_INNER_Y + ROSTER_CELL_H
-    love.graphics.line(ROSTER_X, ly, ROSTER_X + ROSTER_OUTER_W, ly)
 
     -- Party slot outlines (white)
     for i = 1, PARTY_SLOTS do
@@ -475,14 +487,15 @@ local function drawScene()
                 local frame = math.floor(previewTimer / data.fl) % entry.frames
                 local q = entry.quads[frame]
                 if q then
-                    local fitScale = math.min(PREVIEW_W / entry.fw, PREVIEW_H / entry.fh) * 0.8
-                    local dw = entry.fw * fitScale
-                    local dh = entry.fh * fitScale
+                    local basefit  = math.min(PREVIEW_W / entry.fw, PREVIEW_H / entry.fh)
+                    local fitScale = basefit * 1.9 * data.scale
+                    local offsetPx = data.offsetY * basefit * 1.9
                     love.graphics.setColor(1, 1, 1, 1)
                     love.graphics.draw(entry.img, q,
-                        PREVIEW_X + (PREVIEW_W - dw) / 2,
-                        PREVIEW_Y + (PREVIEW_H - dh) / 2,
-                        0, fitScale, fitScale)
+                        PREVIEW_X + PREVIEW_W / 2,
+                        PREVIEW_Y + PREVIEW_H / 2 + offsetPx,
+                        0, fitScale, fitScale,
+                        entry.fw / 2, entry.fh / 2)
                 end
             end
         end

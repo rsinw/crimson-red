@@ -5,6 +5,7 @@
 
 local common    = require("common")
 local moonshine = require("moonshine")
+local music_mgr = require("music_mgr")
 
 local VW = common.VW
 local VH = common.VH
@@ -16,6 +17,7 @@ local screens = {
     map          = require("screens/map"),
     encounter    = require("screens/encounter"),
     party_select = require("screens/party_select"),
+    sprite_dev   = require("screens/sprite_dev"),
 }
 
 local canvas, postfx
@@ -60,6 +62,7 @@ function love.load()
 end
 
 function love.update(dt)
+    music_mgr.update(dt)
     screens[current].update(dt)
 
     if trans.phase then

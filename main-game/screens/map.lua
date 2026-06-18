@@ -77,6 +77,7 @@ local font16, font14
 local icons = {}
 
 local hoveredItem = nil
+local hoveredKey  = nil
 local pressedItem = nil
 local box = common.newBox()
 local topbarItems = {}
@@ -193,7 +194,7 @@ local function buildTopBar()
     topbarItems[1] = {isArrow=true, x=aX, y=aY, w=aW, h=aH}
 
     local labels  = {"PARTY", "TALENTS", "ITEMS"}
-    local centers = {150, 310, 745}
+    local centers = {100, 205, 300}
     for i, lbl in ipairs(labels) do
         local lw = font16:getWidth(lbl)
         local lh = font16:getHeight()
@@ -332,6 +333,7 @@ function M.onEnter(canvas, postfx, sw, sd, slot)
     switchFn    = sw
     saveData_ref = sd
     slot_ref    = slot
+    require("music_mgr").play("forest")
 
     postfx_ref.chromasep.radius = common.CHROMA_RADIUS
 
@@ -377,6 +379,7 @@ function M.onEnter(canvas, postfx, sw, sd, slot)
     clearTile(player.col, player.row)
 
     hoveredItem = nil
+    hoveredKey  = nil
     pressedItem = nil
     popup = {visible=false, scale=0, direction=0, typeProgress=0, typing=false}
 
@@ -416,9 +419,16 @@ function M.update(dt)
 
     local vmx, vmy = common.virtualMouse()
     detectHover(vmx, vmy)
+
     if hoveredItem then
+        local newKey = hoveredItem.zone .. (hoveredItem.col or "") ..
+                       (hoveredItem.row or "") .. (hoveredItem.index or "")
+        local silent = (newKey == hoveredKey)
+        hoveredKey   = newKey
         local r = hoveredItem.rect
-        common.setBoxTarget(box, r[1], r[2], r[3], r[4])
+        common.setBoxTarget(box, r[1], r[2], r[3], r[4], silent)
+    else
+        hoveredKey = nil
     end
     common.updateBox(box, dt)
 end
@@ -434,8 +444,8 @@ function M.mousereleased(x, y, button)
         local p = pressedItem
         pressedItem = nil
         if     p.zone == "map"    then tryMove(p.col, p.row)
-        elseif p.zone == "popup"  then onEnterPress()
-        elseif p.zone == "topbar" then onTopBar(p.index)
+        elseif p.zone == "popup"  then common.playClickSound(); onEnterPress()
+        elseif p.zone == "topbar" then common.playClickSound(); onTopBar(p.index)
         end
     end
 end
@@ -499,6 +509,8 @@ local function isItemPressed(zone, index)
            (index == nil or pressedItem.index == index)
 end
 
+local LOCATION_NAME = "DARK FOREST"
+
 local function drawTopBar()
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.setLineWidth(1)
@@ -513,6 +525,11 @@ local function drawTopBar()
         love.graphics.setColor(isItemPressed("topbar", i) and common.COLOR_BLACK or common.COLOR_WHITE)
         love.graphics.print(t.label, t.x, t.y)
     end
+
+    local lw = font16:getWidth(LOCATION_NAME)
+    local lh = font16:getHeight()
+    love.graphics.setColor(common.COLOR_RED)
+    love.graphics.print(LOCATION_NAME, VW - lw - 12, math.floor((TOP_BAR_H - lh) / 2))
 end
 
 local function drawPopupContent()

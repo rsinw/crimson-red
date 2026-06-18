@@ -32,8 +32,8 @@ M.COLOR_BLACK = {0, 0, 0, 1}
 --      vw/vh stay at VW/VH so blur steps are in virtual-pixel units at any window size.
 
 M.CHROMA_RADIUS  = 1.0   -- chromatic aberration pixel offset
-M.BLOOM_MIN_LUMA = 0.15  -- pixels brighter than this glow (pure red luma ≈ 0.21)
-M.BLOOM_STRENGTH = 3     -- glow spread (sigma); glow.lua only has strength + min_luma
+M.BLOOM_MIN_LUMA = 0.25  -- pixels brighter than this glow (pure red luma ≈ 0.21)
+M.BLOOM_STRENGTH = 2     -- glow spread (sigma); glow.lua only has strength + min_luma
 
 function M.newPostFX(moonshine)
     -- Use .chain() not :chain() — colon passes self as the effect arg.
@@ -112,12 +112,17 @@ end
 
 -- Update the box target (called when a new item is hovered)
 -- The box will animate toward the new target on the next updateBox call
-function M.setBoxTarget(box, x, y, w, h)
+function M.setBoxTarget(box, x, y, w, h, silent)
+    if box.shown and box.tx == x and box.ty == y and box.tw == w and box.th == h then
+        return
+    end
     box.tx, box.ty, box.tw, box.th = x, y, w, h
     if not box.shown then
         -- Snap on first ever hover so it doesn't fly in from (0,0)
         box.x, box.y, box.w, box.h = x, y, w, h
         box.shown = true
+    elseif not silent then
+        M.playHoverSound()
     end
 end
 
@@ -235,6 +240,29 @@ M.ARROW_HEAD_W  = 12
 M.ARROW_SHAFT_H = 8
 M.ARROW_SHAFT_W = 16
 M.ARROW_W       = M.ARROW_HEAD_W + M.ARROW_SHAFT_W
+
+-- ============================================================================
+-- HOVER SOUND
+-- ============================================================================
+
+local _hoverSnd = nil
+local _clickSnd = nil
+
+function M.playHoverSound()
+    if not _hoverSnd then
+        local ok, s = pcall(love.audio.newSource, "assets/sounds/UI/Menu Selection Click.wav", "static")
+        if ok then _hoverSnd = s; _hoverSnd:setVolume(1.0) end
+    end
+    if _hoverSnd then _hoverSnd:stop(); _hoverSnd:play() end
+end
+
+function M.playClickSound()
+    if not _clickSnd then
+        local ok, s = pcall(love.audio.newSource, "assets/sounds/UI/ps5-selection-button.mp3", "static")
+        if ok then _clickSnd = s; _clickSnd:setVolume(1.0) end
+    end
+    if _clickSnd then _clickSnd:stop(); _clickSnd:play() end
+end
 
 function M.drawBackArrow(isPressed)
     local ax, ay, ah = M.ARROW_X, M.ARROW_Y, M.ARROW_H

@@ -110,20 +110,26 @@ function M.drawEntities(world, battle, SCALE)
         local flipSign  = faceRight and 1 or -1
         local sx, sy    = flipSign * drawScale, drawScale
 
+        local so = world.spriteOffset and world.spriteOffset[id]
+        local ox = so and so.x or 0
+        local oy = so and so.y or 0
+        local dx = pos.x + ox * flipSign
+        local dy = pos.y + oy
+
         -- Draw sprite with effect tints (undulating RGB modifications)
         local etList = world.effectTints[id]
         if etList and #etList > 0 then
             love.graphics.setColor(1, 1, 1, 1)
-            love.graphics.draw(dbEntry.img, q, pos.x, pos.y, 0, sx, sy, fw/2, fh/2)
+            love.graphics.draw(dbEntry.img, q, dx, dy, 0, sx, sy, fw/2, fh/2)
             love.graphics.setBlendMode("add")
             for _, et in ipairs(etList) do
                 love.graphics.setColor(et.R * et.intensity, et.G * et.intensity, et.B * et.intensity, 1)
-                love.graphics.draw(dbEntry.img, q, pos.x, pos.y, 0, sx, sy, fw/2, fh/2)
+                love.graphics.draw(dbEntry.img, q, dx, dy, 0, sx, sy, fw/2, fh/2)
             end
             love.graphics.setBlendMode("alpha")
         else
             love.graphics.setColor(1, 1, 1, 1)
-            love.graphics.draw(dbEntry.img, q, pos.x, pos.y, 0, sx, sy, fw/2, fh/2)
+            love.graphics.draw(dbEntry.img, q, dx, dy, 0, sx, sy, fw/2, fh/2)
         end
 
         -- Hurt/heal indicator: additive sprite overlay that fades
@@ -137,7 +143,7 @@ function M.drawEntities(world, battle, SCALE)
                     else
                         love.graphics.setColor(eff.alpha * 0.8, 0, 0, 1)
                     end
-                    love.graphics.draw(dbEntry.img, q, pos.x, pos.y, 0, sx, sy, fw/2, fh/2)
+                    love.graphics.draw(dbEntry.img, q, dx, dy, 0, sx, sy, fw/2, fh/2)
                     love.graphics.setBlendMode("alpha")
                 end
             end
@@ -151,7 +157,7 @@ function M.drawEntities(world, battle, SCALE)
         if selAlpha > 0 then
             love.graphics.setBlendMode("add")
             love.graphics.setColor(selAlpha, selAlpha, selAlpha, 1)
-            love.graphics.draw(dbEntry.img, q, pos.x, pos.y, 0, sx, sy, fw/2, fh/2)
+            love.graphics.draw(dbEntry.img, q, dx, dy, 0, sx, sy, fw/2, fh/2)
             love.graphics.setBlendMode("alpha")
         end
 

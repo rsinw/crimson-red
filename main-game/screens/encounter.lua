@@ -24,6 +24,12 @@ local BATTLE_LINE_Y = VH * 0.2
 
 local ENEMY_DANGER = { skeleton = 3 }
 
+-- Resource bar layout constants
+local RES_PER_SEG        = 5
+local RES_SEG_COUNT      = 10
+local RESOURCE_MAX       = RES_PER_SEG * RES_SEG_COUNT   -- 50
+local RESOURCE_BAR_AREA_H = 20   -- pixels reserved at bottom (physics clamp + bar)
+
 -- ============================================================================
 -- MODULE STATE — reset each onEnter
 -- ============================================================================
@@ -31,7 +37,6 @@ local ENEMY_DANGER = { skeleton = 3 }
 local world = {}
 local battle = {
     font=nil, smallFont=nil, battlebg=nil,
-    music1=nil, music2=nil, bell=nil,
 }
 
 local iconImages = {}
@@ -55,6 +60,9 @@ local function initWorld()
         effectTints  = {},
         anim         = {},  hasEntered  = {},  deathState   = {},
         isRanged     = {},  targetSide  = {},  dangerLevel = {},
+        spriteOffset = {},
+        hasAttacked  = {},
+        meleeAnchor  = {},
         hasThreateningPresence = {},
     }
     function world:new()
@@ -82,8 +90,12 @@ local function initBattle(c, pfx)
     battle.iconScales      = {1.0, 1.0, 1.0, 1.0}
     battle.victoryTimer    = nil
     battle.victoryDelay    = nil
+    battle.victorySnd      = nil
     battle.hoveredUnit     = nil
     battle.pressedUnit     = nil
+    battle.resource        = 0
+    battle.resourceMax     = RESOURCE_MAX
+    battle.resourcePops    = {}
 end
 
 -- ============================================================================
@@ -107,22 +119,32 @@ local function loadAssets()
     battle.font      = common.loadFont(16)
     battle.smallFont = common.loadFont(10)
 
-    local ok, bg = pcall(love.graphics.newImage, "assets/images/battlebg.png")
+    local ok, bg = pcall(love.graphics.newImage, "assets/images/forestbg2.png")
     battle.battlebg = ok and bg or nil
 
     local C = "assets/characters/"
     local E = "assets/enemies/"
-    anim_mod.load("KnightIdle",    C.."Knight/Idle.png",      10, 135, 135, 1.0)
-    anim_mod.load("KnightMove",    C.."Knight/Run.png",         6, 135, 135, 1.0)
-    anim_mod.load("KnightAttack1", C.."Knight/Attack1.png",     4, 135, 135, 1.0)
-    anim_mod.load("KnightAttack2", C.."Knight/Attack2.png",     4, 135, 135, 1.0)
-    anim_mod.load("KnightTakeHit", C.."Knight/Take Hit.png",    3, 135, 135, 1.0)
-    anim_mod.load("KnightDeath",   C.."Knight/Death.png",       9, 135, 135, 1.0)
+    anim_mod.load("KnightIdle",    C.."Knight/Idle.png",      10, 135, 135, 1.1)
+    anim_mod.load("KnightMove",    C.."Knight/Run.png",         6, 135, 135, 1.1)
+    anim_mod.load("KnightAttack1", C.."Knight/Attack1.png",     4, 135, 135, 1.1)
+    anim_mod.load("KnightAttack2", C.."Knight/Attack2.png",     4, 135, 135, 1.1)
+    anim_mod.load("KnightTakeHit", C.."Knight/Take Hit.png",    3, 135, 135, 1.1)
+    anim_mod.load("KnightDeath",   C.."Knight/Death.png",       9, 135, 135, 1.1)
 
-    anim_mod.load("BrigandIdle",    C.."Brigand/Idle.png",     10, 126, 126, 1.0)
-    anim_mod.load("BrigandMove",    C.."Brigand/Run.png",       8, 126, 126, 1.0)
-    anim_mod.load("BrigandAttack1", C.."Brigand/Attack1.png",   7, 126, 126, 1.0)
-    anim_mod.load("BrigandDeath",   C.."Brigand/Death.png",    11, 126, 126, 1.0)
+    anim_mod.load("BrigandIdle",    C.."Brigand/Idle.png",      10, 126, 126, 0.9)
+    anim_mod.load("BrigandMove",    C.."Brigand/Run.png",        8, 126, 126, 0.9)
+    anim_mod.load("BrigandAttack1", C.."Brigand/Attack1.png",    7, 126, 126, 0.9)
+    anim_mod.load("BrigandDeath",   C.."Brigand/Death.png",     11, 126, 126, 0.9)
+
+    anim_mod.load("ChampionIdle",    C.."Champion/Idle.png",     8, 160, 111, 1.0)
+    anim_mod.load("ChampionMove",    C.."Champion/Run.png",      8, 160, 111, 1.0)
+    anim_mod.load("ChampionAttack1", C.."Champion/Attack1.png",  4, 160, 111, 1.0)
+    anim_mod.load("ChampionDeath",   C.."Champion/Death.png",    6, 160, 111, 1.0)
+
+    anim_mod.load("DuelistIdle",    C.."Duelist/Idle.png",      8, 200, 200, 0.959)
+    anim_mod.load("DuelistMove",    C.."Duelist/Run.png",       8, 200, 200, 0.959)
+    anim_mod.load("DuelistAttack1", C.."Duelist/Attack1.png",   6, 200, 200, 0.959)
+    anim_mod.load("DuelistDeath",   C.."Duelist/Death.png",     6, 200, 200, 0.959)
 
     anim_mod.load("SkeletonIdle",   E.."Skeleton/Idle.png",     4, 150, 150, 0.75)
     anim_mod.load("SkeletonMove",   E.."Skeleton/Walk.png",     4, 150, 150, 0.75)
@@ -143,23 +165,20 @@ local function loadAssets()
     anim_mod.load("MushroomAttack", E.."Mushroom/Attack.png",  8, 150, 150, 0.75)
     anim_mod.load("MushroomDeath",  E.."Mushroom/Death.png",   4, 150, 150, 0.75)
 
-    anim_mod.load("NomadIdle",    C.."Nomad/Idle.png",     8, 250, 250, 0.54)
-    anim_mod.load("NomadMove",    C.."Nomad/Run.png",       8, 250, 250, 0.54)
-    anim_mod.load("NomadAttack1", C.."Nomad/Attack1.png",   8, 250, 250, 0.54)
-    anim_mod.load("NomadAttack2", C.."Nomad/Attack2.png",   8, 250, 250, 0.54)
-    anim_mod.load("NomadDeath",   C.."Nomad/Death.png",     7, 250, 250, 0.54)
+    anim_mod.load("NomadIdle",    C.."Nomad/Idle.png",     8, 250, 250, 0.72)
+    anim_mod.load("NomadMove",    C.."Nomad/Run.png",       8, 250, 250, 0.72)
+    anim_mod.load("NomadAttack1", C.."Nomad/Attack1.png",   8, 250, 250, 0.72)
+    anim_mod.load("NomadAttack2", C.."Nomad/Attack2.png",   8, 250, 250, 0.72)
+    anim_mod.load("NomadDeath",   C.."Nomad/Death.png",     7, 250, 250, 0.72)
 
     for i = 1, 54 do
         local ok2, img = pcall(love.graphics.newImage, "assets/icons/skill_icons"..i..".png")
         iconImages[i] = ok2 and img or nil
     end
 
-    local ok1, m1 = pcall(love.audio.newSource, "assets/sounds/VistulaShort.mp3", "stream")
-    if ok1 then battle.music1 = m1; m1:setLooping(true); m1:setVolume(0.6); m1:setPitch(0.3) end
-    local ok2b, m2 = pcall(love.audio.newSource, "assets/sounds/jaggedrocksv1.ogg", "stream")
-    if ok2b then battle.music2 = m2; m2:setLooping(true); m2:setVolume(0.8); m2:setPitch(0.3) end
-    local okb, bell = pcall(love.audio.newSource, "assets/sounds/churchbell.ogg", "static")
-    if okb then battle.bell = bell; bell:setVolume(0.7) end
+    local okv, vs = pcall(love.audio.newSource, "assets/sounds/encounter/Victory!.wav", "static")
+    if okv then battle.victorySnd = vs end
+
 end
 
 -- ============================================================================
@@ -170,16 +189,20 @@ local function drawScene(dt)
     love.graphics.setColor(0, 0, 0, 1)
     love.graphics.rectangle("fill", 0, 0, VW, VH)
 
-    love.graphics.setColor(1, 1, 1, 0.85)
-    love.graphics.setLineWidth(1)
-    love.graphics.line(0, BATTLE_LINE_Y, VW, BATTLE_LINE_Y)
+    if battle.battlebg then
+        local iw, ih = battle.battlebg:getDimensions()
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.draw(battle.battlebg, 0, 0, 0, VW/iw, VH/ih)
+    end
 
+    ui.drawShadows(world)
     ui.drawSelectionCircles(world, battle)
     anim_mod.drawEntities(world, battle, SCALE)
     particles.drawBlood(battle)
     particles.drawHeal(battle)
     ui.barSystem(world, battle)
     ui.skillIconSystem(world, battle, dt)
+    ui.drawResourceBar(battle)
 
     -- Victory overlay
     if battle.victoryTimer then
@@ -195,7 +218,7 @@ local function drawScene(dt)
 
     love.graphics.setFont(battle.smallFont)
     love.graphics.setColor(1, 1, 1, 0.55)
-    love.graphics.print("1-2: select  Q/W/E: skills  K: spawn skeleton  RClick: target/move  Esc: retreat", 5, VH-14)
+    love.graphics.print("1-2: select  Q/W/E: skills (20 res)  K: spawn  RClick: target/move  Esc: retreat", 5, VH - RESOURCE_BAR_AREA_H - 14)
     love.graphics.setColor(1, 1, 1, 1)
 end
 
@@ -209,6 +232,7 @@ function M.onEnter(canvas, postfx, sw, sd, slot, encounterConfig)
     switchFn     = sw
     saveData_ref = sd
     slot_ref     = slot
+    require("music_mgr").play("battle")
 
     initWorld()
     initBattle(canvas, postfx)
@@ -217,10 +241,6 @@ function M.onEnter(canvas, postfx, sw, sd, slot, encounterConfig)
     -- Expose icon lookup for UI sub-module
     battle.getIconImage = getIconImage
 
-    -- Start audio
-    if battle.music1 then battle.music1:stop(); battle.music1:play() end
-    if battle.music2 then battle.music2:stop(); battle.music2:play() end
-    if battle.bell   then battle.bell:stop();   battle.bell:play()   end
 
     -- Initialize encounter manager from config
     local cfg = encounterConfig or {}
@@ -240,35 +260,61 @@ function M.onEnter(canvas, postfx, sw, sd, slot, encounterConfig)
         pendingWave      = nil,
     }
 
-    -- Spawn party walking in from the left edge
-    local partyOrder  = sd and sd.partyOrder or {"knight"}
-    local targetX     = VW * 0.25
-    local partyFeetYs = { VH*0.50, VH*0.62, VH*0.74, VH*0.86 }
-    local SLOT_H      = 40 * SCALE
-    for i, charName in ipairs(partyOrder) do
+    -- Spawn party walking in — rhombus formation.
+    -- Members are 100px apart horizontally; vertical position alternates every
+    -- slot by 100px, so slots 1 & 3 share one level and slots 2 & 4 share another.
+    -- All spawn off-screen already in formation and walk in together.
+    local partyOrder = sd and sd.partyOrder or {"knight"}
+    local SLOT_H     = 40 * SCALE
+
+    local x1   = VW * 0.25 - 60   -- leftmost member X (centers formation at VW*0.25)
+    local y_hi = VH * 0.54        -- midbottom Y for slots 1 and 3
+    local y_lo = y_hi + 40        -- midbottom Y for slots 2 and 4
+
+    local rhombusPos = {
+        {x = x1,      y = y_hi},  -- slot 1: left,         high
+        {x = x1 + 40, y = y_lo},  -- slot 2: centre-left,  low
+        {x = x1 + 80, y = y_hi},  -- slot 3: centre-right, high
+        {x = x1 + 120, y = y_lo}, -- slot 4: right,        low
+    }
+
+    local WALK_IN = VW * 0.5  -- off-screen walk-in distance, same for all members
+
+    local partyRow = 0
+    for i = 1, 4 do
+        local charName = partyOrder[i]
+        if type(charName) ~= "string" then goto spawnNext end
+        partyRow = partyRow + 1
         local charData = sd and sd.unlockedCharacters and sd.unlockedCharacters[charName]
-        local ss = charData and charData.stats or nil
-        local footY  = partyFeetYs[i] or (VH*0.50 + (i-1) * 55)
-        local spawnY = footY - SLOT_H / 2
+        local ss  = charData and charData.stats or nil
+        local pos = rhombusPos[partyRow] or {x = x1, y = y_hi}
+        local spawnX = pos.x - WALK_IN
+        local spawnY = pos.y - SLOT_H / 2
         local id
         if charName == "knight" then
-            id = entities_mod.createKnight(world, battle, -80, spawnY, ss, SCALE, GRAVITY)
+            id = entities_mod.createKnight(world, battle, spawnX, spawnY, ss, SCALE, GRAVITY)
+        elseif charName == "brigand" then
+            id = entities_mod.createBrigand(world, battle, spawnX, spawnY, ss, SCALE, GRAVITY)
+        elseif charName == "champion" then
+            id = entities_mod.createChampion(world, battle, spawnX, spawnY, ss, SCALE, GRAVITY)
+        elseif charName == "duelist" then
+            id = entities_mod.createDuelist(world, battle, spawnX, spawnY, ss, SCALE, GRAVITY)
         elseif charName == "nomad" then
-            id = entities_mod.createNomad(world, battle, -80, spawnY, ss, SCALE)
+            id = entities_mod.createNomad(world, battle, spawnX, spawnY, ss, SCALE)
         end
         if id then
-            world.moveTarget[id].x      = targetX
-            world.moveTarget[id].y      = footY
+            world.hasEntered[id]        = {h=false, v=false}
+            world.moveTarget[id].x      = pos.x
+            world.moveTarget[id].y      = pos.y
             world.moveTarget[id].active = true
             table.insert(battle.partyIds, id)
         end
+        ::spawnNext::
     end
     battle.selectedUnit = battle.partyIds[1]
 end
 
 function M.onExit()
-    if battle.music1 then battle.music1:stop() end
-    if battle.music2 then battle.music2:stop() end
     if battle.postfx then
         battle.postfx.chromasep.radius = common.CHROMA_RADIUS
     end
@@ -298,14 +344,32 @@ function M.update(dt)
     systems.stunSystem(world, dt)
     systems.threat(world, battle, dt)
     systems.moveTarget(world, dt)
-    systems.antiClumping(world)
-    systems.physics(world, dt, VW, VH, BATTLE_LINE_Y, FRICTION, MASS)
+    systems.physics(world, dt, VW, VH - RESOURCE_BAR_AREA_H, BATTLE_LINE_Y, FRICTION, MASS)
+    systems.updateFacing(world)
     anim_mod.updateTimers(world, dt)
     systems.death(world, battle, dt)
     systems.vfxDecay(battle, dt, common)
     ui.updateIconScaleAnimations(world, battle, dt)
     ui.updateSelCircles(world, battle, dt)
     enc_mgr.system(world, battle, dt, VW, VH, SCALE, GRAVITY, ENEMY_DANGER)
+
+    -- Resource regeneration (1 per second) + pop animations
+    do
+        local prev = battle.resource
+        battle.resource = math.min(battle.resourceMax, battle.resource + dt)
+        local prevSegs = math.floor(prev / RES_PER_SEG)
+        local currSegs = math.floor(battle.resource / RES_PER_SEG)
+        for i = prevSegs + 1, math.min(currSegs, RES_SEG_COUNT) do
+            battle.resourcePops[i] = 1.0
+        end
+        for i = 1, RES_SEG_COUNT do
+            local p = battle.resourcePops[i]
+            if p then
+                battle.resourcePops[i] = p - dt / 0.3
+                if battle.resourcePops[i] <= 0 then battle.resourcePops[i] = nil end
+            end
+        end
+    end
 
     -- Hover detection for plate highlighting
     do
@@ -327,9 +391,15 @@ function M.update(dt)
         battle.victoryDelay = battle.victoryDelay - dt
         if battle.victoryDelay <= 0 then
             battle.victoryDelay = nil
-            battle.victoryTimer = 2.0
+            local dur = (battle.victorySnd and battle.victorySnd:getDuration() or 4.0)
+            battle.victoryTimer = math.max(1.0, dur - 2.0)
         end
     elseif enc_mgr.checkVictory(world, battle) then
+        require("music_mgr").stop()
+        if battle.victorySnd then
+            battle.victorySnd:stop()
+            battle.victorySnd:play()
+        end
         battle.victoryDelay = 2.0
     end
 end
@@ -357,7 +427,8 @@ function M.keypressed(key)
     local slot = slotMap[key]
     if slot then
         local skill = sk.list[slot]
-        if skill and skill.cd <= 0 then
+        local cost  = skill and (skill.resourceCost or 0) or 0
+        if skill and skill.cd <= 0 and (battle.resource or 0) >= cost then
             skill.cd = skill.cdMax; sk.pendingActive = slot
             combat.triggerActivationVFX(battle, su, world)
         end
@@ -403,6 +474,7 @@ function M.mousepressed(x, y, button)
 
     if clicked then
         world.entityTarget[su] = {id=clicked}
+        world.hasAttacked[su]  = nil
         if tSide == 1 then
             for id in pairs(world.entities) do
                 local sd = world.side[id]
@@ -415,6 +487,7 @@ function M.mousepressed(x, y, button)
         local sgSu = world.stagger[su]
         if not (sgSu and sgSu.staggered) then
             world.entityTarget[su] = nil
+            world.hasAttacked[su]  = nil
         end
         local mt = world.moveTarget[su]
         if mt then mt.x=vmx; mt.y=vmy; mt.active=true end
